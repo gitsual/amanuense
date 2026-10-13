@@ -14,7 +14,7 @@ They do not decide what the text says. They keep it straight, and they note who 
 <p>
   <img alt="Python 3.11+" src="https://img.shields.io/badge/python-3.11%2B-253850?style=for-the-badge&logo=python&logoColor=E9E9E7">
   <img alt="stdlib only" src="https://img.shields.io/badge/core-zero%20deps-253850?style=for-the-badge&labelColor=253850&color=AAA875">
-  <img alt="57 tests" src="https://img.shields.io/badge/57%20tests-linux%20%2B%20windows-253850?style=for-the-badge&labelColor=253850&color=283536">
+  <img alt="58 tests" src="https://img.shields.io/badge/58%20tests-linux%20%2B%20windows-253850?style=for-the-badge&labelColor=253850&color=283536">
   <img alt="MIND to Obsidian" src="https://img.shields.io/badge/MIND-%E2%86%92%20obsidian-253850?style=for-the-badge&labelColor=253850&color=43363F">
   <img alt="four agent CLIs" src="https://img.shields.io/badge/claude%20·%20codex%20·%20gemini%20·%20copilot-253850?style=for-the-badge&labelColor=253850&color=B9B9B9">
   <img alt="MIT" src="https://img.shields.io/badge/license-MIT-253850?style=for-the-badge&labelColor=253850&color=AAA875">

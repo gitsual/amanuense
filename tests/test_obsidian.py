@@ -90,3 +90,13 @@ def test_cli_obsidian_command(tmp_path, capsys):
     from amanuense import taller
     taller.main(["obsidian", str(_export(tmp_path)), str(tmp_path / "v")])
     assert "8 notas" in capsys.readouterr().out
+
+
+def test_cli_rerun_explains_instead_of_crashing(tmp_path):
+    import pytest
+    from amanuense import taller
+    args = ["obsidian", str(_export(tmp_path)), str(tmp_path / "v")]
+    taller.main(args)
+    with pytest.raises(SystemExit) as stop:
+        taller.main(args)
+    assert "--force" in str(stop.value.code)

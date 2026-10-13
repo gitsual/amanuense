@@ -645,7 +645,10 @@ def main(argv: list[str] | None = None) -> None:
         return
     if a.cmd == "obsidian":
         from .obsidian import export_to_vault
-        done = export_to_vault(a.export, a.dest, a.force)
+        try:
+            done = export_to_vault(a.export, a.dest, a.force)
+        except (FileExistsError, FileNotFoundError) as e:
+            raise SystemExit(f"✗ {e}") from None
         print(f"{done['notes']} notas y {done['media']} imágenes en {done['vault']}")
         return
     if a.cmd == "agents":
