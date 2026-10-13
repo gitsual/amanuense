@@ -21,6 +21,7 @@ They do not decide what the text says. They keep it straight, and they note who 
 </p>
 
 <a href="#-install"><strong>Install</strong></a> ·
+<a href="#-your-first-run-step-by-step"><strong>First run</strong></a> ·
 <a href="#-the-workshop"><strong>The workshop</strong></a> ·
 <a href="#-who-changed-what"><strong>Who changed what</strong></a> ·
 <a href="#-ask-for-a-change"><strong>Ask for a change</strong></a> ·
@@ -77,6 +78,39 @@ amanuense run ~/taller-docs --ai-cli claude
 ```
 
 </details>
+
+## 🚀 Your first run, step by step
+
+A walkthrough for Windows that takes about ten minutes. The [video](assets/video/demo-es.mp4) shows the same flow.
+
+1. Clone the repo with Fork or Git Bash: `git clone https://github.com/gitsual/amanuense.git`
+2. Install [Python 3.11+](https://www.python.org/downloads/windows/) and tick *Add python.exe to PATH*.
+3. Double-click `amanuense.bat`. It creates `Documents\taller-docs` and opens it.
+4. Fill its folders:
+   - `1-export-confluence`: in MIND, open the page's «···» menu and choose Export → Export to Word →
+     *This page and its children*.
+   - `2-mi-documentacion`: your drafts. A draft that replaces a page keeps the page's title and has a
+     paragraph that starts with `Instrucciones de actualización:`.
+   - `3-biblia`: what overrides everything else, such as the reference architecture, the Nexus
+     requirements and the repo standards.
+5. Double-click again. `salida\index.html` opens with the report: pages to update, new pages,
+   duplicates and leftovers.
+6. Every page gets a `TAREA.md`. Give it to the AI your company allows, and save the answer as
+   `RESULTADO.md` in the same folder. If Copilot CLI is installed, run `amanuense.bat --ai-cli copilot`
+   and it does this step for you.
+7. Double-click again. Review `CAMBIOS.html`; its top lists data the AI may have made up. Then open
+   `PARA-CONFLUENCE.html`, select all, copy and paste it into MIND.
+
+From there:
+
+- **Who changed what:** replace the export with a newer one and run again. `salida\registro.html`
+  logs the changes. To see authors, put a personal MIND token in a local `.env`; it never leaves your machine.
+- **Code changes:** list your Bitbucket clones in `repos.txt`. The log flags pages that a commit outdates.
+- **Team requests:** add lines like `- Name: what to change` to `peticiones.md`. The AI picks the
+  page and prepares its task.
+- **Obsidian:** `amanuense.bat obsidian "path\to\export.docx" "path\to\vault\MIND"`.
+
+Nothing is uploaded anywhere. Nothing reaches MIND until a person has reviewed it and pasted it.
 
 ## 📝 The workshop
 
