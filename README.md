@@ -37,11 +37,10 @@ They do not decide what the text says. They keep it straight, and they note who 
 
 ---
 
-<div align="center">
-<a href="assets/video/demo-es.mp4"><img src="assets/video/demo.gif" alt="amanuense demo: report, diff, paste-ready page, change log and the Obsidian vault" width="800"></a><br>
-<sub>Made-up space, people and repo; the AI answers are scripted so the take is reproducible.
-Click for the narrated video (Spanish, 85 s). Rebuild it with <code>scripts/render-assets.sh demo</code>.</sub>
-</div>
+https://github.com/user-attachments/assets/6e89da5c-3f9d-4384-8f5f-3160effc1a8e
+
+<div align="center"><sub>Narrated demo (Spanish, 85 s). Made-up space, people and repo; the AI answers are scripted
+so the take is reproducible. Rebuild it with <code>scripts/render-assets.sh demo</code>.</sub></div>
 
 ---
 
@@ -81,7 +80,7 @@ amanuense run ~/taller-docs --ai-cli claude
 
 ## 🚀 Your first run, step by step
 
-A walkthrough for Windows that takes about ten minutes. The [video](assets/video/demo-es.mp4) shows the same flow.
+A walkthrough for Windows that takes about ten minutes. The video at the top shows the same flow.
 
 1. Clone the repo with Fork or Git Bash: `git clone https://github.com/gitsual/amanuense.git`
 2. Install [Python 3.11+](https://www.python.org/downloads/windows/) and tick *Add python.exe to PATH*.
