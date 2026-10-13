@@ -405,4 +405,5 @@ def test_skeleton_ships_its_native_files_in_sync(tmp_path):
     written = docs_kit.export_agents(SKELETON, tmp_path)
     for path in written:
         rel = path.relative_to(tmp_path)
-        assert (SKELETON / rel).read_bytes() == path.read_bytes(), f"run: amanuense agents {rel}"
+        shipped, fresh = ((SKELETON / rel).read_bytes(), path.read_bytes())  # a Windows checkout may add CR
+        assert shipped.replace(b"\r\n", b"\n") == fresh.replace(b"\r\n", b"\n"), f"run: amanuense agents {rel}"
