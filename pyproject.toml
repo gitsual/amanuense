@@ -1,0 +1,37 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "amanuense"
+version = "0.1.0"
+description = "Documentation workshop for Confluence: compares a Word export with local drafts, prepares one AI task per page, and logs who changed what in Confluence, the code and the requests."
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.11"
+authors = [{ name = "Álvaro González" }]
+keywords = ["confluence", "documentation", "docx", "changelog", "ai-agents"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "License :: OSI Approved :: MIT License",
+    "Topic :: Documentation",
+]
+dependencies = []
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0"]
+
+[project.scripts]
+amanuense = "amanuense.taller:main"
+
+[project.urls]
+Homepage = "https://github.com/gitsual/amanuense"
+Companion = "https://github.com/gitsual/obsidian-search"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/amanuense"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
