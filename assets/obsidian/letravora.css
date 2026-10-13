@@ -1,0 +1,28 @@
+/* Letrávora for Obsidian: the off-white page and silver ink over night-blue
+   humus, with old sand gold as the only accent. Copy into
+   <vault>/.obsidian/snippets/ and enable it under Appearance → CSS snippets. */
+.theme-dark {
+  --background-primary: #253850;
+  --background-primary-alt: #283536;
+  --background-secondary: #283536;
+  --background-secondary-alt: #43363F;
+  --background-modifier-border: #43363F;
+  --text-normal: #E9E9E7;
+  --text-muted: #B9B9B9;
+  --text-faint: #8E959C;
+  --text-accent: #AAA875;
+  --interactive-accent: #AAA875;
+  --link-color: #AAA875;
+  --link-unresolved-color: #B9B9B9;
+  --h1-color: #E9E9E7;
+  --h2-color: #AAA875;
+  --nav-item-color-active: #E9E9E7;
+  --nav-item-background-active: #43363F;
+  --tab-background-active: #253850;
+  --titlebar-background: #283536;
+  --titlebar-background-focused: #283536;
+  --graph-node: #B9B9B9;
+  --graph-node-focused: #AAA875;
+  --graph-line: #43363F;
+  --font-text-theme: "Noto Serif", Georgia, serif;
+}

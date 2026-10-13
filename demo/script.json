@@ -1,0 +1,9 @@
+{
+ "scene-intro": {"es": "Amanuense trabaja con MIND, el Confluence de la suite Atlassian. Toma el export de Word de un espacio, lo compara con tus borradores y con tu código, y lo pasa a Obsidian. Todo lo que ves es un espacio de ejemplo inventado."},
+ "scene-informe": {"es": "Cada vez que lo ejecutas, escribe un informe: qué páginas hay que actualizar, cuáles son nuevas, cuáles están duplicadas y cuáles sólo existen en Confluence. Y prepara una tarea por página, lista para cualquier IA."},
+ "scene-cambios": {"es": "Cuando la IA devuelve su propuesta, ves el cambio línea a línea contra lo que hay hoy en Confluence. Tú decides. Si la propuesta trae un dato que no estaba en ninguna fuente, el taller lo marca antes de que lo apruebes."},
+ "scene-pegar": {"es": "Lo aprobado sale en una página lista para copiar y pegar en Confluence. Nada se publica solo."},
+ "scene-registro": {"es": "El registro dice qué cambió y quién lo cambió. Las ediciones en Confluence, con su autor; los commits del código que dejan una página desfasada; y las peticiones del equipo, donde la IA elige qué página tocar y explica por qué."},
+ "scene-obsidian": {"es": "Y con un solo comando, el espacio entero de MIND pasa a un vault de Obsidian: una nota por página, el mismo árbol, los enlaces y las imágenes."},
+ "scene-cierre": {"es": "Todo corre en tu máquina, en Linux o en Windows. Tú eliges la IA, y tú apruebas cada cambio."}
+}

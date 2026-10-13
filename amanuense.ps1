@@ -4,6 +4,7 @@
 #   Next runs: analyses it and opens salida\index.html.
 #
 #   powershell -ExecutionPolicy Bypass -File .\amanuense.ps1 [extra args, e.g. --ai-cli copilot]
+#   powershell -ExecutionPolicy Bypass -File .\amanuense.ps1 obsidian EXPORT.docx VAULT\MIND
 #
 # Workshop folder: $env:AMANUENSE_WORKSPACE (or .env), default Documents\taller-docs.
 # Needs only Python 3.11+; uses .venv when there is one.
@@ -26,6 +27,11 @@ elseif (Get-Command py -ErrorAction SilentlyContinue) { $pyExe = "py"; $pyArgs =
 elseif (Get-Command python -ErrorAction SilentlyContinue) { $pyExe = "python" }
 else { Write-Error "missing: Python 3 (https://www.python.org/downloads/, check 'Add to PATH')" }
 
+if ($Rest.Count -gt 0 -and $Rest[0] -eq "obsidian") {
+    & $pyExe @pyArgs -m amanuense @Rest
+    if ($LASTEXITCODE -ne 0) { throw "amanuense obsidian failed" }
+    exit 0
+}
 if (-not (Test-Path (Join-Path $Workspace "1-export-confluence"))) {
     & $pyExe @pyArgs -m amanuense init $Workspace
     if ($LASTEXITCODE -ne 0) { throw "amanuense init failed" }

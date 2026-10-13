@@ -1,31 +1,45 @@
 <div align="center">
 
-<h1>amanuense</h1>
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/logo-dark.png">
+  <img src="assets/logo-light.png" alt="amanuense: the scribe for a team's Confluence" width="560">
+</picture>
 
 <p>
 <em>An <strong>amanuense</strong> is the scribe who takes dictation and copies it out clean.<br>
 They do not decide what the text says. They keep it straight, and they note who said what.</em><br>
-<strong>This is that scribe for a team's Confluence: it compares the published pages with your drafts and your code,<br>prepares one AI-ready task per page, and keeps a log of what changed and who changed it.</strong>
+<strong>This is that scribe for MIND, the team's Confluence in the Atlassian suite: it compares the published pages<br>with your drafts and your code, prepares one AI-ready task per page, keeps a log of who changed what,<br>and turns the whole space into an Obsidian vault.</strong>
 </p>
 
 <p>
-  <img alt="Python 3.11+" src="https://img.shields.io/badge/python-3.11%2B-1F2A30?style=for-the-badge&logo=python&logoColor=D9C7A3">
-  <img alt="stdlib only" src="https://img.shields.io/badge/core-zero%20deps-1F2A30?style=for-the-badge&labelColor=1F2A30&color=B08D57">
-  <img alt="53 tests" src="https://img.shields.io/badge/53%20tests-linux%20%2B%20windows-1F2A30?style=for-the-badge&labelColor=1F2A30&color=6E7F5C">
-  <img alt="four agent CLIs" src="https://img.shields.io/badge/claude%20·%20codex%20·%20gemini%20·%20copilot-1F2A30?style=for-the-badge&labelColor=1F2A30&color=D9C7A3">
-  <img alt="MIT" src="https://img.shields.io/badge/license-MIT-1F2A30?style=for-the-badge&labelColor=1F2A30&color=8C3B2E">
+  <img alt="Python 3.11+" src="https://img.shields.io/badge/python-3.11%2B-253850?style=for-the-badge&logo=python&logoColor=E9E9E7">
+  <img alt="stdlib only" src="https://img.shields.io/badge/core-zero%20deps-253850?style=for-the-badge&labelColor=253850&color=AAA875">
+  <img alt="57 tests" src="https://img.shields.io/badge/57%20tests-linux%20%2B%20windows-253850?style=for-the-badge&labelColor=253850&color=283536">
+  <img alt="MIND to Obsidian" src="https://img.shields.io/badge/MIND-%E2%86%92%20obsidian-253850?style=for-the-badge&labelColor=253850&color=43363F">
+  <img alt="four agent CLIs" src="https://img.shields.io/badge/claude%20·%20codex%20·%20gemini%20·%20copilot-253850?style=for-the-badge&labelColor=253850&color=B9B9B9">
+  <img alt="MIT" src="https://img.shields.io/badge/license-MIT-253850?style=for-the-badge&labelColor=253850&color=AAA875">
 </p>
 
 <a href="#-install"><strong>Install</strong></a> ·
 <a href="#-the-workshop"><strong>The workshop</strong></a> ·
 <a href="#-who-changed-what"><strong>Who changed what</strong></a> ·
 <a href="#-ask-for-a-change"><strong>Ask for a change</strong></a> ·
+<a href="#-mind--obsidian"><strong>MIND → Obsidian</strong></a> ·
 <a href="#-pick-your-ai"><strong>Pick your AI</strong></a> ·
 <a href="#-the-team-repo"><strong>The team repo</strong></a> ·
 <a href="#-companion-obsidian-search"><strong>Companion</strong></a> ·
 <a href="#-why-this-exists"><strong>Why</strong></a> ·
+<a href="#-roadmap"><strong>Roadmap</strong></a> ·
 <a href="#-status"><strong>Status</strong></a>
 
+</div>
+
+---
+
+<div align="center">
+<a href="assets/video/demo-es.mp4"><img src="assets/video/demo.gif" alt="amanuense demo: report, diff, paste-ready page, change log and the Obsidian vault" width="800"></a><br>
+<sub>Made-up space, people and repo; the AI answers are scripted so the take is reproducible.
+Click for the narrated video (Spanish, 85 s). Rebuild it with <code>scripts/render-assets.sh demo</code>.</sub>
 </div>
 
 ---
@@ -126,6 +140,20 @@ On the next run, the AI reads the request and the list of pages. It answers whic
 what to change and why, and the workshop prepares that page's task under `salida/peticiones/`.
 If the AI names no valid page, the request is retried on the next run.
 
+## 🪨 MIND → Obsidian
+
+The same Word export becomes an Obsidian vault, so the whole space can be read and linked offline:
+
+```sh
+./amanuense.sh obsidian ~/taller-docs/1-export-confluence/MIND.docx ~/vault/MIND
+amanuense.bat obsidian EXPORT.docx VAULT\MIND      # Windows
+```
+
+Root pages (H1) become folders with an `_index.md`, child pages (H2) become notes, and a child with
+its own children (H3) becomes a folder too. Images land in `_media/` as `![[...]]` embeds, and every
+index links its children. It refuses to overwrite existing notes unless you pass `--force`.
+`assets/obsidian/letravora.css` is the CSS snippet used in the video.
+
 ## 🤖 Pick your AI
 
 | Flag | Engine |
@@ -162,6 +190,28 @@ each other. Without it, everything else works.
 | Code changes that outdate a page | no | no | flagged per commit |
 | Invented data | n/a | you have to spot it | flagged before you approve |
 | Your documents leave the machine | n/a | yes | only to the AI you choose |
+
+## 🧭 Roadmap
+
+What the team asked for, and where each piece stands.
+
+| Goal | Status |
+| --- | --- |
+| Less, coherent documentation: duplicates and orphan pages flagged | done: report on every run |
+| Confluence vs local drafts, with one source of truth | done: report, diff and paste-ready page |
+| Know who changed what, in Confluence and in code | done: change log; authors need the REST API |
+| Change requests in plain words, routed to the right page | done: `peticiones.md` |
+| A bible that overrides everything (reference architecture, requirements, repo standards) | done: `3-biblia/`, fed to every task |
+| MIND readable and linkable offline | done: `amanuense obsidian` |
+| A shared team repo with docs, agents and skills | done: skeleton plus `amanuense agents` |
+| Skills that produce designs ready to paste into Confluence | partial: the workshop skills; design skills planned |
+| A guide on when to use an agent and when a skill | planned |
+| Teams bots per role that update Confluence only after their owner approves | planned |
+| Workflows over the real Bitbucket repos | planned: today it reads local clones |
+| Runs on the team's Windows laptops, next to Git Bash and Fork | done: double-click launcher, tested on Windows 11 |
+
+Nothing connects your AI to the company on its own. You choose the engine, and every change to
+Confluence is pasted by a person after reviewing the diff.
 
 ## 📍 Status
 

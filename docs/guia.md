@@ -115,6 +115,25 @@ El token se queda en tu equipo y sólo se usa para leer el historial de versione
 En Confluence Cloud, añade también `AMANUENSE_CONFLUENCE_USER=tu-correo`. Si no hay
 red, el registro sigue funcionando sin autores y lo indica en sus avisos.
 
+## Pasar MIND a Obsidian
+
+El mismo «Export to Word» de MIND (el Confluence de la suite Atlassian) se puede
+convertir en un vault de Obsidian, para leer y enlazar la documentación sin red:
+
+```
+amanuense.bat obsidian "Documentos\taller-docs\1-export-confluence\MIND.docx" "Documentos\MiVault\MIND"
+./amanuense.sh obsidian ~/taller-docs/1-export-confluence/MIND.docx ~/MiVault/MIND
+```
+
+- Cada página raíz (H1) es una carpeta con `_index.md`; cada hija (H2), una nota;
+  si la hija tiene nietas (H3), pasa a carpeta con su `_index.md` y una nota por nieta.
+- Las imágenes van a `_media/` y se insertan como `![[imagen.png]]`; cada índice
+  enlaza a sus hijas con `[[ruta|título]]`.
+- No pisa notas existentes: si ya hay un export en esa carpeta, repite con `--force`
+  (las notas que hayas editado a mano dentro de esa carpeta se reescriben).
+- Opcional: `assets/obsidian/letravora.css` es el tema del vídeo. Cópialo a
+  `.obsidian/snippets/` del vault y actívalo en Ajustes → Apariencia → Fragmentos CSS.
+
 ## Comparación por contenido (opcional)
 
 Con [obsidian-search](https://github.com/gitsual/obsidian-search) instalado en el mismo

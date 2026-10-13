@@ -6,3 +6,5 @@ build/
 *.egg-info/
 .pytest_cache/
 .env
+assets/brand/candidates/
+demo/out/

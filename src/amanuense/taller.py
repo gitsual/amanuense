@@ -22,6 +22,7 @@ Nunca escribe en las carpetas de entrada ni pisa un RESULTADO.md existente.
 
 Uso:
   amanuense init CARPETA
+  amanuense obsidian EXPORT.docx VAULT/MIND
   amanuense run CARPETA [--ai-cli claude|codex|gemini|copilot] [--content]
   amanuense run CARPETA [--ai-url URL --ai-model MODELO]
 """
@@ -622,6 +623,10 @@ def main(argv: list[str] | None = None) -> None:
     agents.add_argument("dest", type=Path, help="raíz del repo donde dejarlos")
     agents.add_argument("--src", type=Path, default=Path(__file__).resolve().parent / "skeleton",
                         help="carpeta con skills/, agentes/ y AGENTS.md")
+    vault = sub.add_parser("obsidian", help="pasa un export de Confluence a un vault de Obsidian")
+    vault.add_argument("export", type=Path, help="el .docx exportado")
+    vault.add_argument("dest", type=Path, help="carpeta del vault donde dejar las notas")
+    vault.add_argument("--force", action="store_true", help="reescribir notas que ya existen")
     run = sub.add_parser("run", help="analiza, prepara tareas y publica los RESULTADO.md")
     run.add_argument("root", type=Path)
     run.add_argument("--ai-url", default=os.environ.get("AMANUENSE_AI_URL", ""),
@@ -637,6 +642,11 @@ def main(argv: list[str] | None = None) -> None:
 
     if a.cmd == "init":
         print(init_workspace(a.root) / GUIDE)
+        return
+    if a.cmd == "obsidian":
+        from .obsidian import export_to_vault
+        done = export_to_vault(a.export, a.dest, a.force)
+        print(f"{done['notes']} notas y {done['media']} imágenes en {done['vault']}")
         return
     if a.cmd == "agents":
         for path in export_agents(a.src, a.dest):
