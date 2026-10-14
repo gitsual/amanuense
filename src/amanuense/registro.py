@@ -399,8 +399,106 @@ def _code_tasks(out: Path, fresh: list, pages: list[Page], template, bible: str,
         (d / n("task")).write_text(kit._prompt(task, local, template, bible), encoding="utf-8")
         for _, e in hits:
             e["tasks"].append(rel)
+            e.setdefault("task_pages", {})[rel] = title
         made.append(rel)
     return made
+
+
+def code_task_pages(entry: dict) -> dict[str, str]:
+    """{task folder: page} of a commit.
+
+    Older logs only kept two lists that do not line up, so the page is read back from the
+    folder name, which is the page's slug plus a short hash."""
+    if entry.get("task_pages"):
+        return entry["task_pages"]
+    by_slug = {_slug(title): title for title in entry.get("pages", [])}
+    found = {rel: by_slug.get(Path(rel).name.rsplit("-", 1)[0], "") for rel in entry.get("tasks", [])}
+    return {rel: title for rel, title in found.items() if title}
+
+
+TRIAGE_FILE = "TRIAJE.json"
+CATEGORIES = ("actualizar", "encadenar", "ruido", "dudosa")
+MAX_TRIAGE_CHARS = 16000  # commits
+MAX_TRIAGE_PAGE = 30000
+COMMIT_LINE = re.compile(r"^(#+|-) \S+ · \S+ · [0-9a-f]{7,} · ")
+
+
+def triage_code_task(task_dir: Path, title: str, ai: Ai) -> dict:
+    """Asks the AI whether the commits make the page wrong; the verdict is kept in TRIAJE.json."""
+    n = i18n.name
+    current = (task_dir / n("current")).read_text(encoding="utf-8")
+    if len(current) <= MAX_TRIAGE_PAGE:
+        page_text = current
+    else:  # a long page: every heading, then as much of the text as fits
+        headings = "\n".join(line for line in current.splitlines() if line.startswith("#"))
+        page_text = headings + "\n\n" + current[:max(0, MAX_TRIAGE_PAGE - len(headings))]
+    local = (task_dir / n("local_copy")).read_text(encoding="utf-8")
+    # Every commit by subject first, so an old one never falls off; then the diffs that fit.
+    lines = local.splitlines()
+    subjects = "\n".join(  # a commit with its diff has the subject on the next line that has text
+        line if line.startswith("-") else f"{line}: {next((x for x in lines[i + 1:] if x.strip()), '')}"
+        for i, line in enumerate(lines) if COMMIT_LINE.match(line))
+    commits = subjects + "\n\n" + local[:MAX_TRIAGE_CHARS]
+    data = _json_object(ai(i18n.t("triage_prompt", title=title, page=page_text, commits=commits)))
+    category = str(data.get("categoria") or data.get("category") or "").strip().lower()
+    changes = data.get("cambios") or data.get("changes") or []
+    return {"categoria": category if category in CATEGORIES else "dudosa",
+            "motivo": str(data.get("motivo") or data.get("reason") or "").strip(),
+            "cambios": [str(c) for c in changes] if isinstance(changes, list) else [str(changes)]}
+
+
+def _solve_side(out: Path, entries: list[dict], by_title: dict, ai: Ai, template, bible: str,
+                errors: list[str]) -> None:
+    """Writes the AI's proposal for request tasks, then triages code tasks and solves the real ones."""
+    n = i18n.name
+
+    def attempt(rel: str, write) -> None:
+        try:
+            write()
+        except Exception as exc:  # one failing task must not stop the rest
+            errors.append(f"{rel}: {exc}")
+
+    proposals: dict[str, str] = {}
+    for e in entries:
+        if e["kind"] != "peticion" or not e.get("task") or e["page"] not in by_title:
+            continue
+        d, page = out / e["task"], by_title[e["page"]]
+        result = d / n("result")
+        if not result.exists():
+            prompt = (d / n("task")).read_text(encoding="utf-8")
+            attempt(e["task"], lambda: result.write_text(kit.solve(prompt, page.markdown, ai), encoding="utf-8"))
+        if result.exists():
+            proposals[e["page"]] = result.read_text(encoding="utf-8")
+
+    for e in entries:
+        if e["kind"] != "codigo":
+            continue
+        for rel, title in code_task_pages(e).items():
+            d = out / rel
+            if title not in by_title or not d.is_dir() or (d / n("result")).exists():
+                continue
+            verdict_file = d / TRIAGE_FILE
+            if not verdict_file.exists():
+                def triage(d=d, title=title, verdict_file=verdict_file):
+                    verdict = triage_code_task(d, title, ai)
+                    if verdict["categoria"] == "actualizar" and title in proposals:
+                        verdict["categoria"] = "encadenar"
+                    verdict_file.write_text(json.dumps(verdict, ensure_ascii=False, indent=1), encoding="utf-8")
+                attempt(rel, triage)
+                if not verdict_file.exists():
+                    continue
+            verdict = json.loads(verdict_file.read_text(encoding="utf-8"))
+            if verdict["categoria"] not in ("actualizar", "encadenar"):
+                continue
+            base = proposals.get(title, by_title[title].markdown) if verdict["categoria"] == "encadenar" \
+                else by_title[title].markdown
+            local = i18n.t("code_triaged", title=title, reason=verdict["motivo"],
+                           changes="\n".join(f"- {c}" for c in verdict["cambios"]))
+            prompt = kit._prompt(kit.Task(d.name, "update", title, n("repos"), Page(title, base)),
+                                 local, template, bible)
+            (d / n("task")).write_text(prompt, encoding="utf-8")
+            attempt(rel, lambda d=d, prompt=prompt, base=base:
+                    (d / n("result")).write_text(kit.solve(prompt, base, ai), encoding="utf-8"))
 
 
 def _commit_digest(hits: list, run) -> str:
@@ -440,7 +538,7 @@ def _user() -> str:
 
 def update_log(root: Path, exports: list[Path], pages: list[Page], ready: dict[str, kit.Task],
                history: ConfluenceHistory | None = None, router: Ai | None = None,
-               template=None, bible: str = "", run=subprocess.run) -> dict:
+               template=None, bible: str = "", run=subprocess.run, ai: Ai | None = None) -> dict:
     """Adds this run's changes to the log; returns {"entries", "request_tasks", "errors"}."""
     n = i18n.name
     out = root / n("out")
@@ -519,11 +617,14 @@ def update_log(root: Path, exports: list[Path], pages: list[Page], ready: dict[s
             known.discard(previous["id"])
         add(entry)
 
+    if ai:
+        _solve_side(out, entries, by_title, ai, template, bible, errors)
+
     # Workshop: proposals that are ready, from page tasks and request tasks.
     request_tasks = {e["task"]: e for e in entries if e["kind"] == "peticion" and e.get("task")}
     side_tasks = {rel: e["page"] for rel, e in request_tasks.items()}
     side_tasks.update({rel: title for e in entries if e["kind"] == "codigo"
-                       for rel, title in zip(e.get("tasks", []), e.get("pages", []))})
+                       for rel, title in code_task_pages(e).items()})
     for rel, title in side_tasks.items():
         task = kit.Task(Path(rel).name, "update", title, n("requests"), by_title.get(title))
         if (out / rel).is_dir() and kit._publish(out / rel, task) is not None:

@@ -259,3 +259,100 @@ def test_a_request_without_a_page_is_retried_on_the_next_run(tmp_path):
     docs_kit.run_workspace(root, router=lambda p: '{"pagina": "Despliegue", "cambio": "8443", "motivo": "m"}')
     entries = json.loads((root / docs_kit.OUT_DIR / log.LOG_JSON).read_text(encoding="utf-8"))
     assert [(e["kind"], e["page"]) for e in entries] == [("peticion", "Despliegue")]
+
+
+def test_each_code_task_keeps_the_page_it_was_made_for(tmp_path):
+    class Done:
+        returncode, stdout = 0, "+x"
+
+    pages = _pages(("Alfa", "texto"), ("Beta", "texto"))
+    spec = log.RepoSpec(path=tmp_path, url="", refs=())
+    first = {"repo": "r", "branch": "b", "hash": "1" * 40, "by": "Ana", "when": "2026-10-01T00:00:00Z",
+             "what": "c1", "pages": ["Beta"], "tasks": []}
+    second = dict(first, hash="2" * 40, what="c2", pages=["Alfa", "Beta"], tasks=[])
+    log._code_tasks(tmp_path, [(spec, first), (spec, second)], pages, None, "", lambda *a, **k: Done())
+    assert {title: rel.split("/")[-1].rsplit("-", 1)[0] for rel, title in log.code_task_pages(second).items()} \
+        == {"Alfa": "alfa", "Beta": "beta"}
+
+
+def _fake_ai(triage: str, calls: list):
+    def ai(prompt: str) -> str:
+        calls.append(prompt)
+        if "categoria" in prompt:
+            return triage
+        if '"page"' in prompt or '"pagina"' in prompt:
+            return '{"pagina": "Tabla de tracks", "cambio": "paginar de 50 en 50", "motivo": "m"}'
+        return "# Tabla de tracks\n\nPágina propuesta.\n"
+    return ai
+
+
+def _code_workspace(tmp_path, request: bool):
+    root = tmp_path / "taller"
+    docs_kit.init_workspace(root)
+    (root / log.REPOS_FILE).write_text(f"{_repo(tmp_path)}\n", encoding="utf-8")
+    _export(root, _p("Tabla de tracks", "Heading1") + _p("Ver track_table.py"), "2026-10-01T10:00:00Z")
+    if request:
+        (root / log.REQUESTS_FILE).write_text("- Ana: la tabla pagina de 50 en 50\n", encoding="utf-8")
+    return root
+
+
+def test_code_tasks_are_triaged_and_chained_on_the_request_proposal(tmp_path):
+    root = _code_workspace(tmp_path, request=True)
+    calls = []
+    triage = '{"categoria": "actualizar", "motivo": "la tabla ya pagina", "cambios": ["contar la paginación"]}'
+    docs_kit.run_workspace(root, ai=_fake_ai(triage, calls))
+
+    [code] = (root / docs_kit.OUT_DIR / log.i18n.name("code_dir")).iterdir()
+    verdict = json.loads((code / "TRIAJE.json").read_text(encoding="utf-8"))
+    assert verdict["categoria"] == "encadenar" and verdict["cambios"] == ["contar la paginación"]
+    assert (code / docs_kit.RESULT).is_file()
+    solve = [p for p in calls if "contar la paginación" in p and "categoria" not in p]
+    assert solve and "Página propuesta." in solve[-1]  # built on the request's proposal
+
+    before = len(calls)
+    docs_kit.run_workspace(root, ai=_fake_ai(triage, calls))
+    assert len(calls) == before  # triage and results are kept
+
+
+def test_noise_is_not_solved(tmp_path):
+    root = _code_workspace(tmp_path, request=False)
+    calls = []
+    docs_kit.run_workspace(root, ai=_fake_ai('{"categoria": "ruido", "motivo": "no cambia nada"}', calls))
+    [code] = (root / docs_kit.OUT_DIR / log.i18n.name("code_dir")).iterdir()
+    assert json.loads((code / "TRIAJE.json").read_text(encoding="utf-8"))["categoria"] == "ruido"
+    assert not (code / docs_kit.RESULT).exists()
+
+
+def test_deliver_credits_requests_and_lists_doubtful_pages(tmp_path):
+    root = _code_workspace(tmp_path, request=True)
+    triage = '{"categoria": "dudosa", "motivo": "solo el autor sabe si sigue vigente"}'
+    docs_kit.run_workspace(root, ai=_fake_ai(triage, []))
+    folder = docs_kit.deliver_workspace(root, today="2026-10-14")
+    readme = (folder / "LEEME.md").read_text(encoding="utf-8")
+    assert "Tabla de tracks" in readme and "Ana" in readme
+    assert "solo el autor sabe si sigue vigente" in readme
+    assert (folder / "paginas" / "Tabla de tracks" / docs_kit.RESULT).is_file()
+
+
+def test_old_logs_match_code_tasks_to_pages_by_folder_name():
+    entry = {"tasks": ["codigo/beta-123abc", "codigo/alfa-456def"], "pages": ["Alfa", "Beta", "Gamma"]}
+    assert log.code_task_pages(entry) == {"codigo/beta-123abc": "Beta", "codigo/alfa-456def": "Alfa"}
+
+
+def test_triage_reads_the_page_text_not_only_its_headings(tmp_path):
+    (tmp_path / "ACTUAL.md").write_text("# Guía base\n\nEl inyector vive en app-shell.\n", encoding="utf-8")
+    (tmp_path / "LOCAL.md").write_text("commit: elimina app-shell\n", encoding="utf-8")
+    seen = []
+    log.triage_code_task(tmp_path, "Guía base", lambda p: seen.append(p) or '{"categoria": "actualizar"}')
+    assert "El inyector vive en app-shell." in seen[0]
+
+
+def test_triage_always_sees_every_commit_subject(tmp_path):
+    (tmp_path / "ACTUAL.md").write_text("# Componentes\n", encoding="utf-8")
+    local = ("## tooling · develop · aaaaaaaaaa · Ana\n\nfeat: tooling\n\n" + "+x\n" * log.MAX_TRIAGE_CHARS
+             + "\n- components · feature/PROJ-12 · bbbbbbbbbb · Ana: refactor: single package\n")
+    (tmp_path / "LOCAL.md").write_text(local, encoding="utf-8")
+    seen = []
+    log.triage_code_task(tmp_path, "Componentes", lambda p: seen.append(p) or "{}")
+    assert "refactor: single package" in seen[0] and len(seen[0]) < 2 * log.MAX_TRIAGE_CHARS
+    assert "aaaaaaaaaa · Ana: feat: tooling" in seen[0]

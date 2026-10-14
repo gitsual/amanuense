@@ -27,6 +27,7 @@ NAMES: dict[str, dict[str, str]] = {
         "changes": "CHANGES.html", "current": "CURRENT.md", "local_copy": "LOCAL.md",
         "verb_update": "update", "verb_new": "new", "workspace": "docs-workshop",
         "code_dir": "code", "repos_dir": "repos",
+        "delivery": "delivery", "pages_dir": "pages", "new_dir": "new", "readme": "README.md",
     },
     "es": {
         "export": "1-export-confluence", "local": "2-mi-documentacion", "bible": "3-biblia", "out": "salida",
@@ -36,6 +37,7 @@ NAMES: dict[str, dict[str, str]] = {
         "paste": "PARA-CONFLUENCE.html", "changes": "CAMBIOS.html", "current": "ACTUAL.md",
         "local_copy": "LOCAL.md", "verb_update": "actualizar", "verb_new": "nueva", "workspace": "taller-docs",
         "code_dir": "codigo", "repos_dir": "repos",
+        "delivery": "entrega", "pages_dir": "paginas", "new_dir": "nuevas", "readme": "LEEME.md",
     },
 }
 
@@ -186,6 +188,47 @@ la IA dice qué página tocar, qué cambiar y por qué, y prepara su tarea.
         "es": "<p><b>Datos sin fuente</b> (no aparecen en nada de lo que se dio a la IA; "
               "compruébalos antes de aprobar): {terms}</p>",
     },
+    "notices_n": {"en": "{n} notes", "es": "{n} avisos"},
+    "notices_none": {"en": "No PENDING or CONFLICT.", "es": "Sin PENDIENTE ni CONFLICTO."},
+    "notice_marker": {"en": r"(PENDING|CONFLICT)", "es": r"(PENDIENTE|CONFLICTO)"},
+    "edit_failed": {"en": "> PENDING: edit not applied ({why}): {search}",
+                    "es": "> PENDIENTE: edición no aplicada ({why}): {search}"},
+    "edit_missing": {"en": "text not found", "es": "texto no encontrado"},
+    "edit_ambiguous": {"en": "text appears {n} times", "es": "el texto aparece {n} veces"},
+    "edits_mode": {
+        "en": "## How to answer (this page is long)\n\n"
+              "Do NOT return the whole page. Return only edit blocks, one per change:\n\n"
+              "<<<<<<< SEARCH\nexact lines copied from the current page (unique; avoid headings)\n=======\n"
+              "the new lines\n>>>>>>> REPLACE\n\n"
+              "After the blocks, write the `## Change log` section; it is added at the end of the page.",
+        "es": "## Cómo responder (esta página es larga)\n\n"
+              "NO devuelvas la página entera. Devuelve solo bloques de edición, uno por cambio:\n\n"
+              "<<<<<<< SEARCH\nlíneas exactas copiadas de la página actual (únicas; evita los encabezados)\n=======\n"
+              "las líneas nuevas\n>>>>>>> REPLACE\n\n"
+              "Tras los bloques, escribe la sección `## Registro de cambios`; se añade al final de la página.",
+    },
+    "deliver_title": {"en": "# Delivery, {date}", "es": "# Entrega, {date}"},
+    "deliver_pages": {"en": "## Pages to update (`{dir}/`)", "es": "## Páginas que actualizar (`{dir}/`)"},
+    "deliver_new": {"en": "## New pages (`{dir}/`)", "es": "## Páginas nuevas (`{dir}/`)"},
+    "deliver_files": {
+        "en": "Each folder: `{changes}` (the diff, with its notes first), `{paste}` (select all and paste "
+              "into the page) and `{result}` (the page in Markdown).",
+        "es": "Cada carpeta: `{changes}` (el diff, con sus avisos al principio), `{paste}` (seleccionar todo "
+              "y pegar en la página) y `{result}` (la página en Markdown).",
+    },
+    "deliver_from_request": {"en": "request from {by}", "es": "petición de {by}"},
+    "deliver_from_code": {"en": "code review", "es": "revisión del código"},
+    "deliver_from_docs": {"en": "local documentation", "es": "documentación local"},
+    "deliver_notes": {"en": "{n} notes", "es": "{n} avisos"},
+    "deliver_note": {"en": "1 note", "es": "1 aviso"},
+    "deliver_doubtful": {
+        "en": "## For the page author to decide\n\nCommits touch these pages, but only their author knows "
+              "whether they must change:",
+        "es": "## Para que decida el autor de la página\n\nHay commits que tocan estas páginas, pero solo su "
+              "autor sabe si deben cambiar:",
+    },
+    "deliver_notices": {"en": "## Notes to resolve", "es": "## Avisos por resolver"},
+    "deliver_radiator": {"en": "## Capability radiator (`radiador/`)", "es": "## Radiador de capacidades (`radiador/`)"},
     "state_ready": {"en": "ready", "es": "listo"},
     "state_pending": {"en": "pending: {result} missing", "es": "pendiente: falta {result}"},
     "state_unsourced_1": {"en": " · check 1 unsourced item", "es": " · revisar 1 dato sin fuente"},
@@ -248,6 +291,26 @@ la IA dice qué página tocar, qué cambiar y por qué, y prepara su tarea.
               '"motivo": "por qué"}}\n\n'
               "## Petición de {by}\n\n{text}\n\n## Páginas\n\n{listing}\n",
     },
+    "triage_prompt": {
+        "en": "You review whether commits make a documentation page wrong. Page: «{title}»:\n\n{page}\n\n"
+              "Commits and their diffs:\n\n{commits}\n\n"
+              "Reply ONLY with a JSON object: "
+              '{{"categoria": "actualizar" if the page states something these commits make wrong, '
+              '"ruido" if they change nothing the page says, "dudosa" if only the page author can decide; '
+              '"motivo": "one sentence", "cambios": ["one concrete change per item, naming the section"]}}',
+        "es": "Revisas si unos commits dejan mal una página de documentación. Página: «{title}»:\n\n"
+              "{page}\n\nCommits y sus diffs:\n\n{commits}\n\n"
+              "Responde SOLO con un objeto JSON: "
+              '{{"categoria": "actualizar" si la página afirma algo que estos commits dejan mal, '
+              '"ruido" si no cambian nada de lo que dice la página, "dudosa" si solo puede decidirlo su autor; '
+              '"motivo": "una frase", "cambios": ["un cambio concreto por elemento, nombrando la sección"]}}',
+    },
+    "code_triaged": {
+        "en": "# {title}\n\nUpdate instructions: the code changed what this page describes ({reason}). "
+              "Apply ONLY these changes and keep everything else:\n\n{changes}\n",
+        "es": "# {title}\n\nInstrucciones de actualización: el código cambió lo que describe esta página ({reason}). "
+              "Aplica SOLO estos cambios y conserva todo lo demás:\n\n{changes}\n",
+    },
     "request_local": {
         "en": "# {title}\n\nUpdate instructions: {change}\n\nRequest from {by}: {request}\n\nReason: {reason}\n",
         "es": "# {title}\n\nInstrucciones de actualización: {change}\n\nPetición de {by}: {request}\n\nMotivo: {reason}\n",
@@ -300,6 +363,9 @@ la IA dice qué página tocar, qué cambiar y por qué, y prepara su tarea.
     "cli_ai_cli": {"en": "use an installed agent: claude, codex, gemini or copilot",
                    "es": "usar un agente instalado: claude, codex, gemini o copilot"},
     "cli_content": {"en": "also compare by content (RAG)", "es": "comparar también por contenido (RAG)"},
+    "cli_deliver": {"en": "gather the ready pages into output/delivery-DATE with a README",
+                    "es": "reúne las páginas listas en salida/entrega-FECHA con un LEEME"},
+    "cli_zip": {"en": "also make a .zip of the delivery", "es": "crea además un .zip de la entrega"},
     "cli_radiator": {"en": "capability radiator from repos.txt, the export and radiador.json",
                      "es": "radiador de capacidades a partir de repos.txt, el export y radiador.json"},
     "cli_contradictions": {"en": "with --content, contradiction judge", "es": "con --content, juez de contradicciones"},

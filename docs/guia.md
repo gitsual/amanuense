@@ -102,6 +102,12 @@ ejecuta el taller. El registro anota:
   cuenta la rama activa. Si un commit nuevo toca un fichero o un repo que cita una página, el
   registro pide revisarla y prepara su tarea en `salida/codigo/`, con los commits y su diff, para
   que la IA proponga el texto actualizado. El proceso es el mismo que con las demás tareas.
+  Con una IA configurada, el taller hace primero un triaje de cada una de esas tareas y lo guarda
+  en `TRIAJE.json`. Solo redacta propuesta para las que los commits dejan mal de verdad
+  (`actualizar`). Descarta el `ruido`, es decir, los commits que no cambian nada de lo que dice la
+  página, y deja las `dudosa` para que decida su autor. Si la misma página ya tiene una propuesta
+  de petición, los cambios del código se aplican encima (`encadenar`) y en la entrega sale una
+  sola página.
 
   ```
   C:\code\hmi-tracks @ develop
@@ -116,6 +122,10 @@ ejecuta el taller. El registro anota:
   cambiar». La IA configurada responde qué página tocar, qué cambiar y por qué,
   y deja su tarea en `salida/peticiones/`. Allí se sigue el mismo proceso que con
   las demás tareas: `RESULTADO.md`, `CAMBIOS.html` y `PARA-CONFLUENCE.html`.
+- **Páginas largas**: a partir de 40.000 caracteres, la IA no reescribe la página. Responde con
+  bloques `SEARCH/REPLACE`, y el taller aplica solo los bloques cuyo texto aparece una única vez.
+  Los demás quedan como una línea `> PENDIENTE: edición no aplicada`, así que nada se pierde en
+  silencio.
 - **Taller**: cada propuesta que queda lista, con el usuario que ejecutó el taller.
   Para fijar ese nombre, usa `AMANUENSE_USER`.
 
@@ -132,6 +142,23 @@ AMANUENSE_CONFLUENCE_SPACE=CLAVE_DEL_ESPACIO
 El token se queda en tu equipo y sólo se usa para leer el historial de versiones.
 En Confluence Cloud, añade también `AMANUENSE_CONFLUENCE_USER=tu-correo`. Si no hay
 red, el registro sigue funcionando sin autores y lo indica en sus avisos.
+
+## Entregar
+
+```
+amanuense.bat deliver --zip
+./amanuense.sh deliver --zip
+```
+
+Reúne todas las propuestas listas en `salida/entrega-FECHA/`:
+- `paginas/` y `nuevas/`: una carpeta por página con `CAMBIOS.html`, `PARA-CONFLUENCE.html` y
+  `RESULTADO.md`. Si varias propuestas tocan la misma página, gana la encadenada.
+- `LEEME.md`: cada página con su origen (petición de quién, revisión del código o
+  documentación local), las páginas que debe decidir su autor y todos los PENDIENTE y CONFLICTO.
+- El radiador de capacidades, si se ha generado.
+- Con `--zip`, un zip de la carpeta.
+
+`CAMBIOS.html` empieza con esos avisos, así quien revisa ve primero lo que falta.
 
 ## Pasar MIND a Obsidian
 

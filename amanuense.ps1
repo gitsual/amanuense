@@ -5,6 +5,7 @@
 #
 #   powershell -ExecutionPolicy Bypass -File .\amanuense.ps1 [extra args, e.g. --ai-cli copilot]
 #   powershell -ExecutionPolicy Bypass -File .\amanuense.ps1 obsidian EXPORT.docx VAULT\MIND
+#   powershell -ExecutionPolicy Bypass -File .\amanuense.ps1 deliver --zip   (delivery folder + zip)
 #
 #   powershell -ExecutionPolicy Bypass -File .\amanuense.ps1 --lang es   (Spanish workshop)
 #
@@ -73,6 +74,12 @@ if ($Rest.Count -gt 0 -and $Rest[0] -eq "radiator") {
     # Capability catalogue of the workshop: amanuense.bat radiator [--no-open]
     & $pyExe @pyArgs -m amanuense radiator $Workspace @($Rest | Select-Object -Skip 1)
     if ($LASTEXITCODE -ne 0) { throw "amanuense radiator failed" }
+    exit 0
+}
+if ($Rest.Count -gt 0 -and $Rest[0] -eq "deliver") {
+    # Ready pages into the workshop's delivery folder: amanuense.bat deliver [--zip] [--no-open]
+    & $pyExe @pyArgs -m amanuense deliver $Workspace @($Rest | Select-Object -Skip 1)
+    if ($LASTEXITCODE -ne 0) { throw "amanuense deliver failed" }
     exit 0
 }
 if ($Rest.Count -gt 0 -and $Rest[0] -eq "obsidian") {

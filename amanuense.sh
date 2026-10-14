@@ -3,6 +3,7 @@
 #   First run creates the workshop folder; next runs analyse it and open output/index.html.
 #   ./amanuense.sh [extra args, e.g. --ai-cli claude]
 #   ./amanuense.sh obsidian EXPORT.docx VAULT/MIND   (export to an Obsidian vault)
+#   ./amanuense.sh deliver --zip                     (delivery folder + zip)
 #   ./amanuense.sh --lang es        (Spanish workshop; default English, an existing workshop keeps its own)
 #   Workshop folder: AMANUENSE_WORKSPACE (or .env), default ~/docs-workshop (~/taller-docs if it exists).
 set -euo pipefail
@@ -32,4 +33,5 @@ if [[ ! -d "$WS/1-confluence-export" && ! -d "$WS/1-export-confluence" ]]; then
   echo "Workshop created: $WS — fill its folders (see $GUIDE) and run this again."
   exit 0
 fi
+[[ "${1:-}" == deliver ]] && exec "$PY" -m amanuense deliver "$WS" "${@:2}"
 exec "$PY" -m amanuense run "$WS" "$@"

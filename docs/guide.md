@@ -101,6 +101,11 @@ run the workshop. The log records:
   it, only the checked-out branch counts. If a new commit touches a file or a repo that a page
   mentions, the log asks you to review that page and prepares its task in `output/code/`, with the
   commits and their diff, so the AI can propose the updated text. Same process as the other tasks.
+  With an AI configured, the workshop first triages each of those tasks into `TRIAJE.json`.
+  It only writes a proposal for the ones the commits really make wrong (`actualizar`), and
+  skips `ruido`: commits that change nothing the page says. `dudosa` is left for the page's
+  author to decide. If the same page already has a request proposal, the code changes are
+  applied on top of it (`encadenar`), so the delivery ends up with a single page.
 
   ```
   C:\code\hmi-tracks @ develop
@@ -115,6 +120,9 @@ run the workshop. The log records:
   configured AI answers which page to touch, what to change and why, and
   leaves its task in `output/requests/`. The same process applies there as with
   the other tasks: `RESULT.md`, `CHANGES.html` and `FOR-CONFLUENCE.html`.
+- **Long pages**: above 40,000 characters the AI does not rewrite the page. It answers with
+  `SEARCH/REPLACE` blocks, and the workshop applies only the ones whose text appears exactly once.
+  The others become a `> PENDING: edit not applied` line, so nothing is lost silently.
 - **Workshop**: each proposal that becomes ready, with the user who ran the workshop.
   To set that name, use `AMANUENSE_USER`.
 
@@ -131,6 +139,24 @@ AMANUENSE_CONFLUENCE_SPACE=SPACE_KEY
 The token stays on your computer and is only used to read the version history.
 On Confluence Cloud, also add `AMANUENSE_CONFLUENCE_USER=your-email`. If there is no
 network, the log keeps working without authors and says so in its warnings.
+
+## Hand it over
+
+```
+amanuense.bat deliver --zip
+./amanuense.sh deliver --zip
+```
+
+It gathers every ready proposal into `output/delivery-DATE/`:
+- `pages/` and `new/`: one folder per page, holding `CHANGES.html`, `FOR-CONFLUENCE.html` and
+  `RESULT.md`. When several proposals touch the same page, the chained one wins.
+- `README.md`: lists each page and where it came from (a request with its author, the code
+  review or the local documentation), the pages left for their author to decide, and every
+  PENDING / CONFLICT note.
+- The capability radiator, if it was generated.
+- With `--zip`, a zip of the whole folder.
+
+`CHANGES.html` opens with those notes, so the reviewer sees what is missing first.
 
 ## Move MIND to Obsidian
 

@@ -62,6 +62,7 @@ from .confluence import (
 )
 
 BIBLE_DOC_CHARS = 8000
+MAX_REWRITE = 40_000  # beyond this the AI answers with edit blocks, not the whole page
 CHAT_LIMIT_CHARS = 120_000  # ~30k tokens: beyond this a plain chat window truncates
 TEMPLATE_TITLE = re.compile(r"\b(plantilla|template)\b", re.IGNORECASE)
 WANTS_TEMPLATE = re.compile(r"^\s*(plantilla|template)\s*:", re.IGNORECASE | re.MULTILINE)
@@ -336,6 +337,64 @@ PAGE_CSS = ("body{font-family:system-ui,sans-serif;max-width:60rem;margin:2rem a
             "blockquote{border-left:4px solid #999;margin:0;padding-left:1rem}")
 
 
+EDIT_BLOCK = re.compile(r"<<<<<<< SEARCH\n(.*?)\n=======\n(.*?)\n?>>>>>>> REPLACE\n?", re.DOTALL)
+
+
+def _level(text: str) -> int:
+    """Level of the first heading in `text`."""
+    m = re.search(r"^(#+)", text, re.MULTILINE)
+    return len(m.group(1)) if m else 0
+
+
+def apply_edits(page: str, answer: str) -> tuple[str, list[str]]:
+    """Applies SEARCH/REPLACE blocks whose text is unique; a failed one becomes a PENDING line.
+
+    Whatever the answer has outside the blocks (the change log) goes at the end."""
+    failed: list[str] = []
+    for search, replace in EDIT_BLOCK.findall(answer):
+        hits = page.count(search)
+        if not hits:  # the task shows headings demoted, so the AI may copy a different level
+            loose = re.compile("\n".join(r"#+" + re.escape(line.lstrip("#")) if line.startswith("#")
+                                         else re.escape(line) for line in search.split("\n")))
+            found = loose.findall(page)
+            if len(found) == 1:
+                shift = _level(found[0]) - _level(search)  # keep the page's own heading levels
+                search, hits = found[0], 1
+                replace = "\n".join("#" * max(1, _level(line) + shift) + line.lstrip("#") if line.startswith("#")
+                                    else line for line in replace.split("\n"))
+            hits = hits or len(found)
+        if hits == 1:
+            page = page.replace(search, replace, 1)
+        else:
+            why = i18n.t("edit_missing") if not hits else i18n.t("edit_ambiguous", n=hits)
+            failed.append(i18n.t("edit_failed", why=why, search=" ".join(search.split())[:120]))
+    tail = EDIT_BLOCK.sub("", answer).strip()
+    parts = [page.rstrip(), *failed, tail] if failed else [page.rstrip(), tail]
+    return "\n\n".join(x for x in parts if x) + "\n", failed
+
+
+def solve(prompt: str, base: str, ai: Ai) -> str:
+    """The AI's proposal: the whole page, or edit blocks applied to `base` when it is long."""
+    if len(base) <= MAX_REWRITE:
+        return ai(prompt).strip() + "\n"
+    return apply_edits(base, ai(prompt.rstrip() + "\n\n" + i18n.t("edits_mode") + "\n"))[0]
+
+
+def notices(markdown: str) -> list[str]:
+    """The PENDING / CONFLICT lines of a proposal, without their quote marker."""
+    marker = re.compile(r"^\s*>?\s*\**" + i18n.t("notice_marker") + r"\**\s*:")
+    return [line.strip().lstrip(">").strip() for line in markdown.splitlines() if marker.match(line)]
+
+
+def _notice_box(markdown: str) -> str:
+    found = notices(markdown)
+    if not found:
+        return f'<p id="notices"><b>{html.escape(i18n.t("notices_none"))}</b></p>'
+    items = "".join(f"<li>{html.escape(x)}</li>" for x in found)
+    return (f'<div id="notices" style="border:2px solid #b45309;padding:.5rem 1rem;margin:1rem 0">'
+            f'<b>{html.escape(i18n.t("notices_n", n=len(found)))}</b><ul>{items}</ul></div>')
+
+
 def _html_page(title: str, body: str) -> str:
     return (f'<!doctype html><html lang="{i18n.current()}"><head><meta charset="utf-8"><title>{html.escape(title)}</title>'
             f"<style>{PAGE_CSS}</style></head><body>\n{body}</body></html>\n")
@@ -354,9 +413,10 @@ def _publish(task_dir: Path, task: Task) -> list[str] | None:
     diff = difflib.HtmlDiff(wrapcolumn=90).make_file(
         before.splitlines(), proposal.splitlines(),
         i18n.t("confluence_today" if task.page else "local_draft"), i18n.t("proposal"), context=True, numlines=3)
+    note = _notice_box(proposal)
     if unsupported:
-        note = i18n.t("unsourced_note", terms=html.escape(", ".join(unsupported)))
-        diff = diff.replace("<body>", "<body>\n" + note, 1)
+        note += i18n.t("unsourced_note", terms=html.escape(", ".join(unsupported)))
+    diff = diff.replace("<body>", "<body>\n" + note, 1)
     (task_dir / n("changes")).write_text(diff, encoding="utf-8")
     return unsupported
 
@@ -428,7 +488,8 @@ def run_workspace(root: Path, embed=None, judge=None, ai: Ai | None = None, hist
         sizes[t.slug] = len(prompt)
         if ai and not (d / n("result")).exists():
             try:
-                (d / n("result")).write_text(ai(prompt).strip() + "\n", encoding="utf-8")
+                base = t.page.markdown if t.page else local_text
+                (d / n("result")).write_text(solve(prompt, base, ai), encoding="utf-8")
             except Exception as exc:  # one failing task must not stop the rest
                 errors[t.slug] = str(exc)
         unsupported = _publish(d, t)
@@ -437,13 +498,94 @@ def run_workspace(root: Path, embed=None, judge=None, ai: Ai | None = None, hist
 
     from . import registro as log
     done = {f"{n('tasks')}/{t.slug}": t for t in tasks if t.slug in ready}
-    changes = log.update_log(root, exports, pages, done, history, router or ai, template, bible)
+    changes = log.update_log(root, exports, pages, done, history, router or ai, template, bible, ai=ai)
 
     index = out / "index.html"
     index.write_text(_index(out, rows, tasks, ready, level, sizes, errors), encoding="utf-8")
     return {"page_level": level, "tasks": [t.slug for t in tasks], "ready": sorted(ready), "errors": errors,
             "index": index, "template": template.title if template else None,
             "log": out / n("log_html"), "log_errors": changes["errors"]}
+
+
+UNSAFE_NAME = re.compile(r'[\\/:*?"<>|]')
+
+
+def deliver_workspace(root: Path, make_zip: bool = False, today: str | None = None,
+                      lang: str | None = None) -> Path:
+    """Gathers every ready proposal into output/delivery-DATE/: one folder per page and a README."""
+    from datetime import date
+    from . import registro as log
+    i18n.choose(root, lang)
+    n, t = i18n.name, i18n.t
+    out = root / n("out")
+    entries = log._load(out / n("log_json"), [])
+    requests = {e["task"]: e for e in entries if e["kind"] == "peticion" and e.get("task")}
+    code = {rel: title for e in entries if e["kind"] == "codigo" for rel, title in log.code_task_pages(e).items()}
+
+    def verdict(rel: str) -> dict:
+        path = out / rel / log.TRIAGE_FILE
+        return json.loads(path.read_text(encoding="utf-8")) if path.is_file() else {}
+
+    def rank(rel: str) -> int:  # the proposal that carries the most: chained > request > code > page
+        if verdict(rel).get("categoria") == "encadenar":
+            return 0
+        return 1 if rel in requests else 2 if rel in code else 3
+
+    by_page: dict[str, list[str]] = {}
+    for e in entries:
+        if e["kind"] == "taller" and (out / e["task"] / n("result")).is_file():
+            title = code.get(e["task"]) or e["page"]  # old logs may carry a mismatched title
+            by_page.setdefault(title, []).append(e["task"])
+    folder = out / f'{n("delivery")}-{today or date.today().isoformat()}'
+    if folder.exists():
+        shutil.rmtree(folder)
+    lines = [t("deliver_title", date=folder.name.split("-", 1)[1]), ""]
+    sections: dict[str, list[str]] = {"pages": [], "new": []}
+    notes: list[str] = []
+    for title, rels in sorted(by_page.items()):
+        rel = min(dict.fromkeys(rels), key=rank)
+        src = out / rel
+        new = not (src / n("current")).is_file()
+        dest = folder / n("new_dir" if new else "pages_dir") / UNSAFE_NAME.sub("_", title)
+        dest.mkdir(parents=True)
+        for key in ("result", "paste", "changes"):
+            if (src / n(key)).is_file():
+                shutil.copy2(src / n(key), dest / n(key))
+        found = notices((src / n("result")).read_text(encoding="utf-8"))
+        asked = [requests[r]["by"] for r in requests if requests[r]["page"] == title]
+        if rel in requests:
+            origin = t("deliver_from_request", by=requests[rel]["by"])
+        elif rel in code:
+            chained = verdict(rel).get("categoria") == "encadenar" and asked
+            origin = (t("deliver_from_request", by=", ".join(dict.fromkeys(asked))) + " · " if chained else "") \
+                + t("deliver_from_code")
+        else:
+            origin = t("deliver_from_docs")
+        sections["new" if new else "pages"].append(
+            f"- {title} · {origin}" + (f" · {t('deliver_notes' if len(found) > 1 else 'deliver_note', n=len(found))}"
+                                      if found else ""))
+        notes += [f"- {title}: {x}" for x in found]
+    for key, head, dir_key in (("pages", "deliver_pages", "pages_dir"), ("new", "deliver_new", "new_dir")):
+        if sections[key]:
+            lines += [t(head, dir=n(dir_key)), "", *sections[key], ""]
+    if sections["pages"] or sections["new"]:
+        lines += [t("deliver_files", changes=n("changes"), paste=n("paste"), result=n("result")), ""]
+    doubtful = {rel: f'- {title}: {verdict(rel).get("motivo", "")}'
+                for e in entries if e["kind"] == "codigo"
+                for rel, title in log.code_task_pages(e).items() if verdict(rel).get("categoria") == "dudosa"}
+    if doubtful:
+        lines += [t("deliver_doubtful"), "", *sorted(doubtful.values()), ""]
+    if notes:
+        lines += [t("deliver_notices"), "", *notes, ""]
+    radiator = out / "radiador"
+    if radiator.is_dir():
+        shutil.copytree(radiator, folder / "radiador")
+        lines += [t("deliver_radiator"), ""]
+    folder.mkdir(parents=True, exist_ok=True)
+    (folder / n("readme")).write_text("\n".join(lines).rstrip() + "\n", encoding="utf-8")
+    if make_zip:
+        shutil.make_archive(str(folder), "zip", folder.parent, folder.name)
+    return folder
 
 
 def openai_client(url: str, model: str, key: str = "", opener=urllib.request.urlopen,
@@ -619,6 +761,10 @@ def main(argv: list[str] | None = None) -> None:
     radiator = sub.add_parser("radiator", help=t("cli_radiator"), parents=[after])
     radiator.add_argument("root", type=Path)
     radiator.add_argument("--no-open", action="store_true", help=t("cli_no_open"))
+    deliver = sub.add_parser("deliver", help=t("cli_deliver"), parents=[after])
+    deliver.add_argument("root", type=Path)
+    deliver.add_argument("--zip", action="store_true", help=t("cli_zip"))
+    deliver.add_argument("--no-open", action="store_true", help=t("cli_no_open"))
     run = sub.add_parser("run", help=t("cli_run"), parents=[after])
     run.add_argument("root", type=Path)
     run.add_argument("--ai-url", default=os.environ.get("AMANUENSE_AI_URL", ""), help=t("cli_ai_url"))
@@ -647,6 +793,12 @@ def main(argv: list[str] | None = None) -> None:
         print(index)
         if not a.no_open:
             webbrowser.open(index.resolve().as_uri())
+        return
+    if a.cmd == "deliver":
+        folder = deliver_workspace(a.root, a.zip, lang=a.lang)
+        print(folder)
+        if not a.no_open:
+            webbrowser.open(folder.resolve().as_uri())
         return
     if a.cmd == "agents":
         src = a.src or Path(__file__).resolve().parent / "skeleton" / i18n.current()

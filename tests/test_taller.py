@@ -413,3 +413,109 @@ def test_skeleton_ships_its_native_files_in_sync(tmp_path, lang):
         rel = path.relative_to(tmp_path)
         shipped, fresh = ((skeleton / rel).read_bytes(), path.read_bytes())  # a Windows checkout may add CR
         assert shipped.replace(b"\r\n", b"\n") == fresh.replace(b"\r\n", b"\n"), f"run: amanuense agents {rel}"
+
+
+def test_changes_open_with_the_pending_and_conflict_notes(tmp_path):
+    ws = _workspace(tmp_path)
+    docs_kit.run_workspace(ws)
+    tasks = ws / docs_kit.OUT_DIR / "tareas"
+    flagged = tasks / "01-actualizar-convenciones-de-nomenclatura"
+    (flagged / "RESULTADO.md").write_text(
+        "# Convenciones de nomenclatura\n\n> PENDIENTE: falta la versión\n\nTexto.\n\n"
+        "> CONFLICTO: la Biblia choca con el borrador\n", encoding="utf-8")
+    clean = tasks / "02-nueva-capacidad-de-mapas"
+    (clean / "RESULTADO.md").write_text("# Capacidad de mapas\n\nTexto.\n", encoding="utf-8")
+
+    docs_kit.run_workspace(ws)
+
+    diff = (flagged / "CAMBIOS.html").read_text(encoding="utf-8")
+    head = diff[:diff.index("<table")]
+    assert "falta la versión" in head and "la Biblia choca con el borrador" in head and "2 avisos" in head
+    head = (clean / "CAMBIOS.html").read_text(encoding="utf-8").split("<table")[0]
+    assert "Sin PENDIENTE ni CONFLICTO" in head
+
+
+def test_edits_apply_only_where_the_text_is_unique():
+    page = "# T\n\nUno.\n\nDos.\n\nDos.\n"
+    answer = ("<<<<<<< SEARCH\nUno.\n=======\nUno bis.\n>>>>>>> REPLACE\n"
+              "<<<<<<< SEARCH\nDos.\n=======\nX\n>>>>>>> REPLACE\n"
+              "<<<<<<< SEARCH\nTres.\n=======\nY\n>>>>>>> REPLACE\n"
+              "## Registro de cambios\n\n- Uno pasa a Uno bis.\n")
+    text, failed = docs_kit.apply_edits(page, answer)
+    body = text.split("> PENDIENTE")[0]
+    assert "Uno bis." in body and body.count("Dos.") == 2 and "Y" not in body
+    assert len(failed) == 2 and text.count("> PENDIENTE: edición no aplicada") == 2
+    assert text.rstrip().endswith("- Uno pasa a Uno bis.")
+
+
+def test_large_pages_are_answered_with_edits(tmp_path, monkeypatch):
+    ws = _workspace(tmp_path)
+    monkeypatch.setattr(docs_kit, "MAX_REWRITE", 10)
+    prompts = []
+
+    def ai(prompt: str) -> str:
+        prompts.append(prompt)
+        return "<<<<<<< SEARCH\nfeature/\n=======\nPROJ-\n>>>>>>> REPLACE\n"
+
+    docs_kit.run_workspace(ws, ai=ai)
+
+    update = ws / docs_kit.OUT_DIR / "tareas" / "01-actualizar-convenciones-de-nomenclatura"
+    assert any("<<<<<<< SEARCH" in p for p in prompts)
+    result = (update / "RESULTADO.md").read_text(encoding="utf-8")
+    current = (update / "ACTUAL.md").read_text(encoding="utf-8")
+    assert result.strip() == current.replace("feature/", "PROJ-").strip()
+
+
+def test_deliver_gathers_ready_pages_new_pages_and_a_readme(tmp_path):
+    ws = _workspace(tmp_path)
+    docs_kit.run_workspace(ws)
+    tasks = ws / docs_kit.OUT_DIR / "tareas"
+    (tasks / "01-actualizar-convenciones-de-nomenclatura" / "RESULTADO.md").write_text(
+        "# Convenciones de nomenclatura\n\n> PENDIENTE: falta la versión\n", encoding="utf-8")
+    (tasks / "02-nueva-capacidad-de-mapas" / "RESULTADO.md").write_text("# Capacidad de mapas\n", encoding="utf-8")
+    docs_kit.run_workspace(ws)
+
+    folder = docs_kit.deliver_workspace(ws, make_zip=True, today="2026-10-14")
+
+    assert folder.name == "entrega-2026-10-14"
+    page = folder / "paginas" / "Convenciones de nomenclatura"
+    assert {p.name for p in page.iterdir()} == {"RESULTADO.md", "PARA-CONFLUENCE.html", "CAMBIOS.html"}
+    assert (folder / "nuevas" / "Capacidad de mapas" / "RESULTADO.md").is_file()
+    readme = (folder / "LEEME.md").read_text(encoding="utf-8")
+    assert "Convenciones de nomenclatura" in readme and "Capacidad de mapas" in readme
+    assert "falta la versión" in readme
+    assert folder.with_suffix(".zip").is_file()
+
+
+def test_deliver_command_prints_the_folder(tmp_path, capsys):
+    ws = _workspace(tmp_path)
+    docs_kit.run_workspace(ws)
+    docs_kit.main(["deliver", str(ws), "--zip", "--no-open"])
+    folder = Path(capsys.readouterr().out.strip().splitlines()[-1])
+    assert folder.is_dir() and folder.with_suffix(".zip").is_file()
+
+
+def test_deliver_trusts_the_task_map_over_old_log_titles(tmp_path):
+    from amanuense import registro as log
+    ws = _workspace(tmp_path)
+    docs_kit.run_workspace(ws)
+    out = ws / docs_kit.OUT_DIR
+    task = out / "codigo" / "alfa-123abc"
+    task.mkdir(parents=True)
+    (task / "ACTUAL.md").write_text("# Alfa\n", encoding="utf-8")
+    (task / "RESULTADO.md").write_text("# Alfa\n\nNuevo.\n", encoding="utf-8")
+    entries = json.loads((out / log.LOG_JSON).read_text(encoding="utf-8"))
+    entries += [{"id": "c1", "kind": "codigo", "tasks": ["codigo/alfa-123abc"], "pages": ["Beta", "Alfa"]},
+                {"id": "t1", "kind": "taller", "page": "Beta", "task": "codigo/alfa-123abc"}]
+    (out / log.LOG_JSON).write_text(json.dumps(entries), encoding="utf-8")
+    folder = docs_kit.deliver_workspace(ws, today="2026-10-14")
+    assert (folder / "paginas" / "Alfa").is_dir() and not (folder / "paginas" / "Beta").exists()
+
+
+def test_edits_match_headings_at_any_level():
+    page = "# T\n\n### 5. Integración en el shell\n\nTexto.\n"
+    answer = ("<<<<<<< SEARCH\n##### 5. Integración en el shell\n=======\n##### 5. Integración en el arranque\n\n"
+              "###### 5.1 Pasos\n>>>>>>> REPLACE\n")
+    text, failed = docs_kit.apply_edits(page, answer)
+    assert not failed and "\n### 5. Integración en el arranque" in text and "shell" not in text
+    assert "\n#### 5.1 Pasos" in text
