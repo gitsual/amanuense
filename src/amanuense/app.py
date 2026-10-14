@@ -14,6 +14,7 @@ import hmac
 import json
 import mimetypes
 import secrets
+import shutil
 import threading
 import traceback
 import urllib.parse
@@ -23,15 +24,18 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 from . import i18n
+from . import intake
 from . import mind
 from . import registro as log
 from . import revision
 from . import settings
+from . import space
 from . import taller as kit
 
 WEB = Path(__file__).resolve().parent / "web"
 STATIC = {"/": "index.html", "/index.html": "index.html", "/app.js": "app.js", "/app.css": "app.css"}
 MAX_BODY = 2_000_000
+MAX_PLAN_BODY = 16_000_000  # the list of a big pile (path, size and hash of each file)
 CSP = ("default-src 'self'; img-src 'self' data: https:; style-src 'self'; script-src 'self'; "
        "connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'")
 
@@ -50,7 +54,7 @@ class Job:
             if self.state["running"]:
                 raise Busy()
             self.state = {"name": name, "running": True, "started": log._now(), "finished": "", "result": None,
-                          "error": ""}
+                          "error": "", "progress": {"stage": "", "done": 0, "total": 0}}
 
         def run():
             try:
@@ -67,6 +71,10 @@ class Job:
     def running(self) -> bool:
         with self.lock:
             return self.state["running"]
+
+    def progress(self, stage: str, done: int = 0, total: int = 0) -> None:
+        with self.lock:
+            self.state["progress"] = {"stage": stage, "done": done, "total": total}
 
 
 # ── What the page shows ────────────────────────────────────────────────────────
@@ -107,6 +115,18 @@ def _detail(root: Path, rel: str) -> dict:
             "edited": (d / (Path(i18n.name("result")).stem + revision.AI_COPY)).is_file()}
 
 
+def _planned_source(root: Path) -> dict:
+    """What a comparison would read now: Confluence live, the Word export, or nothing."""
+    data = settings.load()
+    if data["url"] and data["token"] and data["space"]:
+        return {"kind": "live", "space": data["space"], "root": data["root_page"], "base": data["url"]}
+    exports = kit._inputs(root / i18n.name("export"), ".docx")
+    if exports:
+        return {"kind": "export", "files": [e.name for e in exports],
+                "created": max((log.export_created(e) for e in exports), default="")}
+    return {"kind": "none"}
+
+
 def _state(root: Path, job: Job) -> dict:
     proposals = revision.proposals(root)
     snap = log._load(root / i18n.name("out") / i18n.name("snapshot"), {})
@@ -115,7 +135,22 @@ def _state(root: Path, job: Job) -> dict:
     return {"lang": i18n.current(), "texts": _texts(), "user": log._user(), "workspace": str(root),
             "proposals": proposals, "set_aside": revision.set_aside(root), "job": job_state,
             "settings": settings.summary(), "engines": sorted(kit.ENGINES),
-            "exported": snap.get("created", ""), "pages": sorted(snap.get("pages", {}))}
+            "exported": snap.get("created", ""), "pages": sorted(snap.get("pages", {})),
+            "source": space.last_summary(root), "planned_source": _planned_source(root),
+            "intake": intake.load_summary(root), "formats": intake.READABLE,
+            "limits": {"max_file": intake.MAX_FILE_BYTES, "max_batch": intake.MAX_BATCH_BYTES,
+                       "max_files": intake.MAX_BATCH_FILES},
+            "local_dir": i18n.name("local"), "ignore_file": i18n.name("intake_ignore")}
+
+
+def _source(root: Path, job: Job) -> space.Source:
+    """Confluence live when configured (its cached copy when it does not answer), else the export."""
+    job.progress("fetch")
+    try:
+        client = settings.mind_client()
+    except mind.MindError as exc:  # e.g. an http:// address: say it, and read the export
+        return space.Source("export", None, warning=str(exc))
+    return space.resolve(root, client, settings.load()["root_page"])
 
 
 # ── The server ─────────────────────────────────────────────────────────────────
@@ -160,8 +195,42 @@ def _handler(root: Path, token: str, job: Job, port_box: dict):
         webbrowser.open(path.resolve().as_uri())
         return {"opened": str(path)}
 
+    def compare(batch: str = ""):
+        if batch:
+            intake.batch_dir(root, batch)  # an unknown batch is refused before the job starts
+
+        def work() -> dict:
+            source = _source(root, job)
+            result = kit.run_workspace(root, None, None, settings.ai_client(), history(), source=source,
+                                       progress=job.progress)
+            out = _summary(result)
+            out["source"] = result.get("source") or {}
+            if batch:
+                out["batch_name"] = batch
+                out["batch"] = (intake.load_summary(root).get("batches") or {}).get(batch, {})
+            return out
+        return work
+
+    ledger = intake.Ledger(root)
+    started: set[str] = set()  # batches this session opened: only these can be cancelled
+
+    def start_batch(_body: dict) -> dict:
+        batch = intake.new_batch(root)
+        started.add(batch)
+        return {"batch": batch, "folder": f"{i18n.name('local')}/{batch}"}
+
+    def cancel_batch(body: dict) -> dict:
+        batch = str(body.get("batch", ""))
+        folder = intake.batch_dir(root, batch)
+        if batch not in started:
+            raise ValueError(i18n.t("intake_bad_batch"))
+        shutil.rmtree(folder)
+        started.discard(batch)
+        return {"ok": True}
+
     jobs = {
-        "run": lambda body: lambda: _summary(kit.run_workspace(root, None, None, settings.ai_client(), history())),
+        "run": lambda body: compare(),
+        "intake": lambda body: compare(need(body, "batch")[0]),
         "radiator": lambda body: lambda: str(kit.radiator_workspace(root)),
         "deliver": lambda body: lambda: str(kit.deliver_workspace(root, make_zip=True)),
         "rework": lambda body: (lambda rel, instruction, model=ai():
@@ -199,8 +268,12 @@ def _handler(root: Path, token: str, job: Job, port_box: dict):
         "/api/settings/forget": lambda b: (settings.forget_token(), settings.summary())[1],
         "/api/settings/test": lambda b: {"user": client().me()},
         "/api/open": lambda b: open_target(str(b.get("what", ""))),
+        "/api/intake/plan": lambda b: intake.plan(root, [f for f in b.get("files") or [] if isinstance(f, dict)]),
+        "/api/intake/start": start_batch,
+        "/api/intake/cancel": cancel_batch,
+        "/api/intake/promote": lambda b: {"promoted": intake.promote(root, need(b, "rel")[0])},
     }
-    reads_only = {"/api/preview", "/api/preflight", "/api/settings/test", "/api/open"}
+    reads_only = {"/api/preview", "/api/preflight", "/api/settings/test", "/api/open", "/api/intake/plan"}
 
     class Handler(BaseHTTPRequestHandler):
         server_version = "amanuense"
@@ -260,15 +333,45 @@ def _handler(root: Path, token: str, job: Job, port_box: dict):
                 return self._error(exc)
             return self._json(404, {"error": "not found"})
 
+        def _drain(self, left: int) -> None:
+            """Reads a refused body away so the browser sees the answer, not a reset."""
+            left = min(left, 8 * MAX_BODY)
+            while left > 0:
+                left -= len(self.rfile.read(min(left, 65536)) or b"x" * left)
+            self.close_connection = True
+
+        def _upload(self):
+            """One file of a pile, sent as it is: POST /api/intake/file?batch=…&path=…"""
+            if self.headers.get("Content-Type", "").split(";")[0].strip() != "application/octet-stream":
+                self._drain(int(self.headers.get("Content-Length") or 0))
+                return self._json(415, {"error": "application/octet-stream expected"})
+            size = int(self.headers.get("Content-Length") or 0)
+            query = dict(urllib.parse.parse_qsl(urllib.parse.urlsplit(self.path).query))
+            counted = _Counted(self.rfile)
+            try:
+                if job.running():
+                    raise Busy()
+                if size > intake.MAX_FILE_BYTES:
+                    raise intake.TooBig(i18n.t("intake_file_too_big", path=query.get("path", "?"),
+                                               mb=intake.MAX_FILE_BYTES // (1024 * 1024)))
+                stored = ledger.store(query.get("batch", ""), query.get("path", ""), counted, size,
+                                      self.headers.get("X-Content-SHA256", ""))
+            except Exception as exc:
+                self._drain(size - counted.read_bytes)
+                if isinstance(exc, intake.TooBig):
+                    return self._json(413, {"error": str(exc)})
+                return self._error(exc)
+            return self._json(200, {"stored": stored})
+
         def do_POST(self):
             if not self._allowed(api=True):
                 return self._json(403, {"error": "forbidden"})
+            if urllib.parse.urlsplit(self.path).path == "/api/intake/file":
+                return self._upload()
             size = int(self.headers.get("Content-Length") or 0)
-            if size > MAX_BODY:
-                left = min(size, 8 * MAX_BODY)  # read it away so the browser sees the answer, not a reset
-                while left > 0:
-                    left -= len(self.rfile.read(min(left, 65536)) or b"x" * left)
-                self.close_connection = True
+            limit = MAX_PLAN_BODY if urllib.parse.urlsplit(self.path).path == "/api/intake/plan" else MAX_BODY
+            if size > limit:
+                self._drain(size)
                 return self._json(413, {"error": i18n.t("ui_too_big")})
             try:
                 body = json.loads(self.rfile.read(size) or b"{}")
@@ -308,6 +411,18 @@ def _handler(root: Path, token: str, job: Job, port_box: dict):
             return self._json(500, {"error": f"{exc.__class__.__name__}: {exc}"})
 
     return Handler
+
+
+class _Counted:
+    """A request body that remembers how much of it was read."""
+
+    def __init__(self, stream):
+        self.stream, self.read_bytes = stream, 0
+
+    def read(self, n: int) -> bytes:
+        data = self.stream.read(n)
+        self.read_bytes += len(data)
+        return data
 
 
 def _summary(result: dict) -> dict:

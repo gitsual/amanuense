@@ -415,9 +415,13 @@ def promote(root: Path, rel: str) -> list[str]:
     return chosen
 
 
+MARKER = re.compile(r"⟦[^⟧]*⟧")
+
+
 def adjust(rows: list[Row], pages: list[Page], local: list[LocalDoc], chosen: set[str]) -> tuple[list[Row], set[str]]:
-    """The pile's rules on top of compare(): returns the rows and the files that are new material."""
-    page_text = {p.title: _norm(_content(p.markdown)) for p in pages}
+    """The pile's rules on top of compare(): returns the rows and the files that are new material.
+    A page's Confluence-only markers do not count when telling whether a file says the same."""
+    page_text = {p.title: _norm(MARKER.sub("", _content(p.markdown))) for p in pages}
     by_text = {text: title for title, text in page_text.items() if text}
     docs = {d.rel: d for d in local}
     material: set[str] = set()

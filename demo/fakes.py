@@ -3,8 +3,9 @@
 Nothing here talks to a real service. It answers just enough of each API for amanuense to
 run end to end through its real code paths:
 
-- Confluence Data Center under /rest/api: page lookup by title, page history (who changed it),
-  update and create, so the change log gets its authors and the review app can publish.
+- Confluence Data Center under /rest/api: page lookup by title, the space's pages page by page
+  (start/limit, as the review app reads a live space), page history (who changed it), update
+  and create, so the change log gets its authors and the review app can publish.
 - An OpenAI-compatible /v1/chat/completions that answers every prompt from the demo's script
   (route a request, triage a commit, write a page), so the take is reproducible.
 - An npm registry under /npm for the capability radiator.
@@ -31,8 +32,10 @@ def scripted_answer(world: dict, prompt: str) -> str:
         title = prompt.split("«", 1)[1].split("»", 1)[0]
         return json.dumps(world["triage"][title], ensure_ascii=False)
     first = prompt.splitlines()[0]
-    title = max((t for t in world["results"] if t in first), key=len)
-    return world["results"][title]
+    titles = [t for t in world["results"] if t in first]
+    if not titles and world.get("fallback"):  # a world that answers any page, e.g. an uploaded pile
+        return world["fallback"](prompt)
+    return world["results"][max(titles, key=len)]
 
 
 def start(world: dict, port: int = 0) -> ThreadingHTTPServer:
@@ -73,6 +76,15 @@ def start(world: dict, port: int = 0) -> ThreadingHTTPServer:
             q = dict(urllib.parse.parse_qsl(url.query))
             if url.path == "/rest/api/user/current":
                 return self._send(200, {"displayName": world["editor"]})
+            if url.path == "/rest/api/content" and "title" not in q:
+                listed = [_current(p) for p in pages.values() if q.get("spaceKey") in (None, SPACE)]
+                start, limit = int(q.get("start", 0)), int(q.get("limit", 25))
+                links = {"base": server.base}
+                if start + limit < len(listed):
+                    links["next"] = f"/rest/api/content?spaceKey={SPACE}&start={start + limit}&limit={limit}"
+                chunk = listed[start:start + limit]
+                return self._send(200, {"results": chunk, "start": start, "limit": limit, "size": len(chunk),
+                                        "_links": links})
             if url.path == "/rest/api/content":
                 hits = [_current(p) for p in pages.values() if p["title"] == q.get("title")]
                 return self._send(200, {"results": hits, "size": len(hits)})
