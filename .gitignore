@@ -8,3 +8,4 @@ build/
 .env
 assets/brand/candidates/
 demo/out/
+assets/linkedin/slides-*/

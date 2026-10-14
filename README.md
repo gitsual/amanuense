@@ -42,6 +42,12 @@ https://github.com/user-attachments/assets/6e89da5c-3f9d-4384-8f5f-3160effc1a8e
 <div align="center"><sub>Narrated demo (Spanish, 85 s). Made-up space, people and repo; the AI answers are scripted
 so the take is reproducible. Rebuild it with <code>scripts/render-assets.sh demo</code>.</sub></div>
 
+<p align="center"><a href="assets/linkedin/amanuense-carousel-en.pdf"><img src="assets/linkedin/preview.png" alt="Four slides of the carousel: the AI made up a number, every change line by line, unsourced data gets flagged, you approve and you paste" width="900"></a></p>
+
+<div align="center"><sub>The same flow in ten slides: <a href="assets/linkedin/amanuense-carousel-en.pdf">English</a> ·
+<a href="assets/linkedin/amanuense-carousel-es.pdf">Spanish</a> (PDF). Built from real screenshots with
+<code>assets/linkedin/build-carousel.py</code>.</sub></div>
+
 ---
 
 ## ⬇ Install
