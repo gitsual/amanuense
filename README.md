@@ -14,7 +14,7 @@ They do not decide what the text says. They keep it straight, and they note who 
 <p>
   <img alt="Python 3.11+" src="https://img.shields.io/badge/python-3.11%2B-253850?style=for-the-badge&logo=python&logoColor=E9E9E7">
   <img alt="stdlib only" src="https://img.shields.io/badge/core-zero%20deps-253850?style=for-the-badge&labelColor=253850&color=AAA875">
-  <img alt="76 tests" src="https://img.shields.io/badge/76%20tests-linux%20%2B%20windows-253850?style=for-the-badge&labelColor=253850&color=283536">
+  <img alt="147 tests" src="https://img.shields.io/badge/147%20tests-linux%20%2B%20windows-253850?style=for-the-badge&labelColor=253850&color=283536">
   <img alt="MIND to Obsidian" src="https://img.shields.io/badge/MIND-%E2%86%92%20obsidian-253850?style=for-the-badge&labelColor=253850&color=43363F">
   <img alt="four agent CLIs" src="https://img.shields.io/badge/claude%20·%20codex%20·%20gemini%20·%20copilot-253850?style=for-the-badge&labelColor=253850&color=B9B9B9">
   <img alt="MIT" src="https://img.shields.io/badge/license-MIT-253850?style=for-the-badge&labelColor=253850&color=AAA875">
@@ -23,6 +23,7 @@ They do not decide what the text says. They keep it straight, and they note who 
 <a href="#-install"><strong>Install</strong></a> ·
 <a href="#-your-first-run-step-by-step"><strong>First run</strong></a> ·
 <a href="#-the-workshop"><strong>The workshop</strong></a> ·
+<a href="#-review-and-publish"><strong>Review and publish</strong></a> ·
 <a href="#-who-changed-what"><strong>Who changed what</strong></a> ·
 <a href="#-ask-for-a-change"><strong>Ask for a change</strong></a> ·
 <a href="#-mind--obsidian"><strong>MIND → Obsidian</strong></a> ·
@@ -39,8 +40,8 @@ They do not decide what the text says. They keep it straight, and they note who 
 
 <p align="center"><a href="assets/video/demo-en.mp4"><img src="assets/video/demo.gif" alt="The demo at double speed: the report, the change view with unsourced data flagged, the paste-ready page, the change log and the Obsidian vault" width="800"></a></p>
 
-<div align="center"><sub>Click for the narrated demo: <a href="assets/video/demo-en.mp4">English</a> (89 s) ·
-<a href="assets/video/demo-es.mp4">Spanish</a> (85 s). Made-up space, people and repo; the AI answers are scripted
+<div align="center"><sub>Click for the narrated demo: <a href="assets/video/demo-en.mp4">English</a> (2 min) ·
+<a href="assets/video/demo-es.mp4">Spanish</a> (2 min). Made-up space, people and repo; the AI answers are scripted
 so the take is reproducible. Rebuild it with <code>scripts/render-assets.sh demo [es]</code>.</sub></div>
 
 <p align="center"><a href="assets/linkedin/amanuense-carousel-en.pdf"><img src="assets/linkedin/preview.png" alt="Four slides of the carousel: the AI made up a number, every change line by line, unsourced data gets flagged, you approve and you paste" width="900"></a></p>
@@ -72,7 +73,7 @@ cd amanuense
 
 Install [Python](https://www.python.org/downloads/windows/) 3.11 or newer. *Add python.exe to PATH*
 helps, but the launcher finds Python without it too. Then double-click `amanuense.bat`. The first run creates `Documents\docs-workshop` and opens it.
-Every later double-click analyses the folder and opens `output\index.html`.
+Every later double-click opens the review app in your browser.
 
 </details>
 
@@ -102,13 +103,14 @@ A walkthrough for Windows that takes about ten minutes. The video at the top sho
      paragraph that starts with `Update instructions:`.
    - `3-bible`: what overrides everything else, such as the reference architecture, the Nexus
      requirements and the repo standards.
-5. Double-click again. `output\index.html` opens with the report: pages to update, new pages,
-   duplicates and leftovers.
+5. Double-click again. The review app opens; press **Look for changes**. It writes the report
+   (`output\index.html`): pages to update, new pages, duplicates and leftovers.
 6. Every page gets a `TASK.md`. Give it to the AI your company allows, and save the answer as
    `RESULT.md` in the same folder. If Copilot CLI is installed, run `amanuense.bat --ai-cli copilot`
    and it does this step for you.
-7. Double-click again. Review `CHANGES.html`; its top lists data the AI may have made up. Then open
-   `FOR-CONFLUENCE.html`, select all, copy and paste it into MIND.
+7. In the app, go through the pages: the diff, the data the AI may have made up, the CONFLICT notes
+   to decide. Approve each one and publish it, by hand (copy and paste) or, with a token, straight
+   through the Confluence API. See [Review and publish](#-review-and-publish).
 
 From there:
 
@@ -121,7 +123,7 @@ From there:
   page and prepares its task.
 - **Obsidian:** `amanuense.bat obsidian "path\to\export.docx" "path\to\vault\MIND"`.
 
-Nothing is uploaded anywhere. Nothing reaches MIND until a person has reviewed it and pasted it.
+Nothing is uploaded anywhere. Nothing reaches MIND until a person has reviewed and approved it.
 
 ## 📝 The workshop
 
@@ -151,6 +153,24 @@ It never writes into the input folders and never overwrites a `RESULT.md`.
 The Spanish workshop (`--lang es`) uses `1-export-confluence/`, `2-mi-documentacion/`, `3-biblia/`,
 `peticiones.md`, `salida/`, `TAREA.md` and `RESULTADO.md`, and the marker
 `Instrucciones de actualización:`. Both markers work in either language.
+
+## ✅ Review and publish
+
+<p align="center"><img src="assets/review/inbox.png" alt="The review app: the inbox on the left, a page with its notes and the side-by-side diff on the right" width="860"></p>
+
+The double-click opens a small local app (`127.0.0.1` only, no install, works offline). One inbox
+holds every page the run proposed **and** every task the triage set aside, with the reason. For each
+page you get the diff against MIND, a live-preview editor, the request or commits behind it, and its
+PENDING / CONFLICT notes. Decide each CONFLICT in place, approve, and publish:
+
+- **By hand**, always: *Copy page* puts the formatted page on the clipboard, you paste it into MIND
+  and confirm. Copying alone never counts as published.
+- **Through the API**, with a personal token set in *Settings*. It blocks when MIND changed after your
+  export or when the page holds something it cannot rebuild (images, attachments, Jira macros), backs
+  up the previous version, reads the page back to verify, and can undo.
+
+The token lives outside the workshop (DPAPI-encrypted on Windows) and never reaches the browser.
+Details in the [guide](docs/guide.md#review-and-publish-the-app).
 
 ## 👥 Who changed what
 

@@ -44,15 +44,66 @@ carpeta de la ruta lleva corchetes, como `[HMI]`, escribe la ruta entre comillas
    - `3-biblia\`: lo que manda sobre todo lo demás (arquitectura de referencia,
      requisitos de publicación en Nexus, estándares de repos). Un documento con
      «plantilla» en el nombre pasa a ser la plantilla de las páginas nuevas.
-3. Doble clic otra vez en `amanuense.bat`. Se abre `salida\index.html`.
+3. Doble clic otra vez en `amanuense.bat`. Se abre la **app de revisión** en el navegador.
+   Pulsa **Buscar cambios**: compara el export con tus carpetas y prepara una tarea por página.
 4. Para cada tarea, da `TAREA.md` a tu IA (pegarlo en el chat o, si es un agente
    con acceso a ficheros, pedirle que la haga) y guarda la respuesta como
-   `RESULTADO.md` en la misma carpeta.
-5. Doble clic otra vez: revisa `CAMBIOS.html` y pega `PARA-CONFLUENCE.html` en
-   Confluence.
+   `RESULTADO.md` en la misma carpeta. Con un agente configurado (más abajo), la app lo hace sola.
+5. De vuelta en la app, revisa cada página, apruébala y publícala (siguiente apartado).
 
 Volver a ejecutar es seguro: nunca toca tus carpetas de entrada ni pisa un
 `RESULTADO.md`.
+
+## Revisar y publicar: la app
+
+El doble clic en `amanuense.bat` (o `./amanuense.sh` sin argumentos) abre una pequeña app en el
+navegador. Solo funciona en tu ordenador (`127.0.0.1`), no hay que instalar nada y funciona sin
+conexión. `amanuense review <taller> [--no-open]` la arranca a mano.
+
+- **Bandeja**: una fila por página con su origen (una petición y su autor, la revisión del código o
+  tus borradores), sus avisos y su estado: *pendiente*, *aprobada*, *publicada* o *descartada*. La
+  barra de arriba cuenta cuántas están cerradas. Debajo, plegadas, las tareas que el triaje apartó
+  (`ruido`, `dudosa`) con su motivo; **Redactar igualmente** manda una a la IA.
+- **Una página** tiene cinco pestañas:
+  - **Cambios**: la página actual y la propuesta lado a lado, bloque a bloque.
+  - **Cómo quedará**: la página final.
+  - **Editar**: el Markdown con vista previa en vivo. La versión de la IA se guarda en `RESULTADO.ia.md`.
+  - **Por qué**: la petición o los commits que la originaron, con el motivo del triaje.
+  - **Historial**: qué cambió en MIND y quién (con token).
+- **Avisos**: cada PENDIENTE y CONFLICTO aparece encima de las pestañas. **Decidir** sustituye la
+  línea del CONFLICTO por tu texto. No se puede aprobar una página con un CONFLICTO abierto.
+- **Aprobar**, **Descartar** (con motivo) y **Siguiente**. Si MIND cambia después de aprobar una
+  página, vuelve a *pendiente*.
+- **Buscar cambios** está en la barra superior; el menú **Más** genera el radiador de capacidades,
+  prepara el zip de la entrega y abre el registro de cambios.
+
+Cada acción queda en `salida/registro.html` con tu nombre (`AMANUENSE_USER`, o el que pongas en la app).
+
+### Publicar
+
+**A mano (funciona siempre):** **Publicar en MIND… → A mano**. **Copiar página** pone la página
+con formato en el portapapeles; **Abrir en MIND** te lleva a ella; pégala en el editor, guarda y
+pulsa **Ya está publicada**. Copiar no marca nunca la página como publicada.
+
+**Automático (opcional):** en **Ajustes**, escribe la dirección de MIND, la clave del espacio y un
+token personal (tu avatar → Configuración → Tokens de acceso personal → Crear token) y pulsa
+**Probar la conexión**. A partir de ahí, **Publicar ahora** actualiza la página por la API REST de
+Confluence, con estas salvaguardas:
+
+- **Bloquea** si la página cambió en MIND después de tu export, y dice quién la cambió y cuándo.
+  Vuelve a exportar, o revísala a mano.
+- **Bloquea** si la página tiene algo que el taller no sabe reconstruir (imágenes, adjuntos, macros
+  de Jira, maquetación, menciones) y pasa al modo manual guiado, con la lista de lo que se perdería.
+- Antes de cada actualización guarda la versión anterior en `salida/mind-copias/`; **Deshacer la
+  publicación** la vuelve a subir como versión nueva.
+- Después de publicar, vuelve a leer la página y solo la marca como *publicada* si la versión coincide.
+- Las páginas nuevas necesitan una página padre que exista en el mismo espacio; si ya hay una página
+  con ese título, se bloquea.
+
+El token se guarda fuera del taller, cifrado para tu usuario de Windows
+(`%APPDATA%\amanuense\settings.json`; en Linux, `~/.config/amanuense/` con permisos 600). Nunca
+llega al navegador ni viaja en el zip de la entrega. **Antes del primer uso real, publica una sola
+página de prueba en tu espacio personal.**
 
 ## Con un agente instalado: Claude Code, Codex, Gemini o Copilot (recomendado)
 

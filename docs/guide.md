@@ -43,15 +43,66 @@ has brackets, such as `[HMI]`, write the path in quotes in the terminal: `cd "C:
    - `3-bible\`: whatever overrides everything else (reference architecture,
      Nexus publishing requirements, repo standards). A document with
      "template" in its name becomes the template for new pages.
-3. Double-click `amanuense.bat` again. `output\index.html` opens.
+3. Double-click `amanuense.bat` again. The **review app** opens in your browser. Press
+   **Look for changes**: it compares the export with your folders and prepares one task per page.
 4. For each task, give `TASK.md` to your AI (paste it into the chat or, if it is an
    agent with file access, ask it to do the task) and save the answer as
-   `RESULT.md` in the same folder.
-5. Double-click again: review `CHANGES.html` and paste `FOR-CONFLUENCE.html`
-   into Confluence.
+   `RESULT.md` in the same folder. With an agent configured (below), the app does this for you.
+5. Back in the app, review each page, approve it and publish it (next section).
 
 Running it again is safe: it never touches your input folders and never
 overwrites a `RESULT.md`.
+
+## Review and publish: the app
+
+Double-clicking `amanuense.bat` (or `./amanuense.sh` with no arguments) opens a small app in your
+browser. It runs only on your computer (`127.0.0.1`), needs no installation and works offline.
+`amanuense review <workshop> [--no-open]` starts it by hand.
+
+- **Inbox**: one row per page with its origin (a request and its author, the code review or your
+  drafts), its notes and its state: *pending*, *approved*, *published* or *discarded*. The bar on
+  top counts how many are closed. Below, folded, are the tasks the triage set aside (`ruido`,
+  `dudosa`) with the reason; **Write it anyway** sends one to the AI.
+- **A page** has five tabs:
+  - **Changes**: the current page and the proposal side by side, block by block.
+  - **How it will look**: the final page.
+  - **Edit**: the Markdown with a live preview. The AI's version is kept as `RESULT.ia.md`.
+  - **Why**: the request or the commits that triggered it, with the triage reason.
+  - **History**: what changed in MIND and who did it (with a token).
+- **Notes**: every PENDING and CONFLICT is listed above the tabs. **Decide** replaces a CONFLICT
+  line with your text. A page cannot be approved while a CONFLICT is open.
+- **Approve**, **Discard** (with a reason) and **Next**. If MIND changes after you approved a page,
+  it goes back to *pending*.
+- **Look for changes** runs from the top bar; the **More** menu builds the capability radiator,
+  prepares the delivery zip and opens the change log.
+
+Every action goes into `output/log.html` with your name (`AMANUENSE_USER`, or the one you set in
+the app).
+
+### Publishing
+
+**By hand (always works):** **Publish in Confluence… → By hand**. **Copy page** puts the formatted page
+on the clipboard; **Open in Confluence** takes you to it; paste it into the editor, save, and press
+**It is published**. Copying alone never marks a page as published.
+
+**Automatically (optional):** in **Settings**, enter the MIND address, the space key and a
+personal token (your avatar → Settings → Personal Access Tokens → Create token), then press
+**Test the connection**. From then on **Publish now** updates the page through the Confluence
+REST API, with these safeguards:
+
+- It **blocks** if the page changed in MIND after your export, and says who changed it and when.
+  Export again, or review it by hand.
+- It **blocks** if the page has something the workshop cannot rebuild (images, attachments, Jira
+  macros, layouts, mentions) and switches to the guided manual mode, listing what would be lost.
+- Before each update it saves the previous version in `output/mind-copias/`; **Undo the publication** uploads
+  it again as a new version.
+- After publishing it reads the page back and only marks it *published* if the version matches.
+- New pages need an existing parent page in the same space; a page with the same title blocks.
+
+The token is stored outside the workshop, encrypted for your Windows user
+(`%APPDATA%\amanuense\settings.json`; `~/.config/amanuense/` with mode 600 on Linux). It is never
+sent to the browser and never travels in the delivery zip. **Before the first real use, publish a
+single test page in your personal space.**
 
 ## With an installed agent: Claude Code, Codex, Gemini or Copilot (recommended)
 
