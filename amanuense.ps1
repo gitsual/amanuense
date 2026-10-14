@@ -10,7 +10,7 @@
 #
 # Workshop folder: $env:AMANUENSE_WORKSPACE (or .env), default Documents\docs-workshop
 # (Documents\taller-docs if it exists). An existing workshop keeps its own language.
-# Needs only Python 3.11+; uses .venv when there is one.
+# Needs only Python 3.11+; uses .venv when there is one, and finds Python even off the PATH.
 $Rest = @($args)
 $ErrorActionPreference = "Stop"
 Set-Location -Path $PSScriptRoot
@@ -32,11 +32,40 @@ for ($i = 0; $i -lt $Rest.Count; $i++) {
     elseif ($Rest[$i] -like "--lang=*") { $LangArgs = @($Rest[$i]) }
 }
 
-$pyExe = $null; $pyArgs = @()
-if (Test-Path ".venv\Scripts\python.exe") { $pyExe = ".venv\Scripts\python.exe" }
-elseif (Get-Command py -ErrorAction SilentlyContinue) { $pyExe = "py"; $pyArgs = @("-3") }
-elseif (Get-Command python -ErrorAction SilentlyContinue) { $pyExe = "python" }
-else { Write-Error "missing: Python 3 (https://www.python.org/downloads/, check 'Add to PATH')" }
+# Python 3.11+, found even when the installer did not add it to the PATH.
+function Find-Python {
+    $ErrorActionPreference = "Continue"
+    $candidates = @()
+    if (Test-Path ".venv\Scripts\python.exe") { $candidates += ,@((Resolve-Path ".venv\Scripts\python.exe").Path) }
+    if (Get-Command py -ErrorAction SilentlyContinue) { $candidates += ,@("py", "-3") }
+    foreach ($name in @("python", "python3")) {
+        $cmd = Get-Command $name -ErrorAction SilentlyContinue
+        # The WindowsApps "python.exe" only opens the Microsoft Store.
+        if ($cmd -and $cmd.Source -notlike "*\WindowsApps\*") { $candidates += ,@($cmd.Source) }
+    }
+    $roots = @("$env:LOCALAPPDATA\Programs\Python", $env:ProgramFiles, ${env:ProgramFiles(x86)}, "C:\")
+    foreach ($root in $roots) {
+        if (-not $root -or -not (Test-Path $root)) { continue }
+        Get-ChildItem -Path $root -Directory -Filter "Python3*" -ErrorAction SilentlyContinue |
+            Sort-Object { [int]($_.Name -replace '\D', '') } -Descending |
+            ForEach-Object { $exe = Join-Path $_.FullName "python.exe"; if (Test-Path $exe) { $candidates += ,@($exe) } }
+    }
+    foreach ($c in $candidates) {
+        $exe = $c[0]; $extra = @($c | Select-Object -Skip 1)
+        & $exe @extra -c "import sys; sys.exit(0 if sys.version_info >= (3, 11) else 1)" 2>$null
+        if ($LASTEXITCODE -eq 0) { return ,$c }
+    }
+    return $null
+}
+
+$found = Find-Python
+if (-not $found) {
+    Write-Host "Python 3.11 or newer was not found."
+    Write-Host "Install it from https://www.python.org/downloads/windows/ (the PATH box is optional)"
+    Write-Host "or run: winget install Python.Python.3.12"
+    exit 1
+}
+$pyExe = $found[0]; $pyArgs = @($found | Select-Object -Skip 1)
 
 if ($Rest.Count -gt 0 -and $Rest[0] -eq "obsidian") {
     & $pyExe @pyArgs -m amanuense @Rest

@@ -24,7 +24,10 @@ que los valores del ejemplo de la plantilla no acaben en la página nueva.
 
 ## Probarlo en cinco minutos (Windows)
 
-Sólo hace falta Python 3 (python.org, marcando «Add to PATH»).
+Sólo hace falta Python 3.11 o superior (python.org). Marcar «Add python.exe to PATH» ayuda, pero el
+lanzador encuentra Python también sin él; algunos instaladores ni siquiera muestran esa casilla. Si una
+carpeta de la ruta lleva corchetes, como `[HMI]`, escribe la ruta entre comillas en la terminal:
+`cd "C:\code\[HMI] docs"`.
 
 1. La primera vez, ejecuta **`amanuense.bat --lang es`** (en la raíz del repo): crea
    `Documentos\docs-workshop` con las carpetas en español y la abre. Sin `--lang es`, el
@@ -93,9 +96,22 @@ ejecuta el taller. El registro anota:
 - **Confluence**: cada página que cambió desde el export anterior, con las líneas
   añadidas y quitadas. Si configuras la API, también quién la cambió, cuándo y
   el comentario de versión. La primera vez sólo guarda la referencia.
-- **Código**: los commits de los clones locales de Bitbucket que listes en
-  `repos.txt` (una ruta por línea), con su autor. Si un commit toca un fichero o
-  un repo que cita una página, el registro pide revisarla.
+- **Código**: los commits de los repos que listes en `repos.txt`, con su autor y su rama. Cada
+  línea es un clon local (no se toca) o una URL, que se clona en `repos/` y se actualiza en cada
+  ejecución. Añade `@ develop, feature/x` para seguir esas ramas o `@ *` para todas; sin eso, solo
+  cuenta la rama activa. Si un commit nuevo toca un fichero o un repo que cita una página, el
+  registro pide revisarla y prepara su tarea en `salida/codigo/`, con los commits y su diff, para
+  que la IA proponga el texto actualizado. El proceso es el mismo que con las demás tareas.
+
+  ```
+  C:\code\hmi-tracks @ develop
+  https://bitbucket.example.com/scm/team/hmi-base.git @ *
+  ```
+- **Programado**: `scripts\schedule-windows.ps1` ejecuta el taller cada día a las 08:00
+  (`-At 07:30`, `-Every weekly`, `-Remove`; lo que vaya tras `--` se pasa al taller, como
+  `-- --ai-cli copilot`). Nunca abre el navegador ni pide contraseña, así que guarda antes las
+  credenciales de Bitbucket en Git (basta un `git clone` a mano). En Linux, una línea de cron:
+  `0 8 * * * /ruta/a/amanuense.sh --no-open`.
 - **Peticiones**: escribe en `peticiones.md` una línea «- Nombre: qué hay que
   cambiar». La IA configurada responde qué página tocar, qué cambiar y por qué,
   y deja su tarea en `salida/peticiones/`. Allí se sigue el mismo proceso que con

@@ -26,6 +26,7 @@ NAMES: dict[str, dict[str, str]] = {
         "tasks": "tasks", "task": "TASK.md", "result": "RESULT.md", "paste": "FOR-CONFLUENCE.html",
         "changes": "CHANGES.html", "current": "CURRENT.md", "local_copy": "LOCAL.md",
         "verb_update": "update", "verb_new": "new", "workspace": "docs-workshop",
+        "code_dir": "code", "repos_dir": "repos",
     },
     "es": {
         "export": "1-export-confluence", "local": "2-mi-documentacion", "bible": "3-biblia", "out": "salida",
@@ -34,6 +35,7 @@ NAMES: dict[str, dict[str, str]] = {
         "snapshot": "registro-export.json", "tasks": "tareas", "task": "TAREA.md", "result": "RESULTADO.md",
         "paste": "PARA-CONFLUENCE.html", "changes": "CAMBIOS.html", "current": "ACTUAL.md",
         "local_copy": "LOCAL.md", "verb_update": "actualizar", "verb_new": "nueva", "workspace": "taller-docs",
+        "code_dir": "codigo", "repos_dir": "repos",
     },
 }
 
@@ -97,10 +99,18 @@ la IA dice qué página tocar, qué cambiar y por qué, y prepara su tarea.
 """,
     },
     "repos_text": {
-        "en": "# Local clones of the Bitbucket repos, one per line.\n"
-              "# The log records their commits and flags the pages that mention them.\n",
-        "es": "# Clones locales de los repos de Bitbucket, uno por línea.\n"
-              "# El registro anota sus commits y avisa de las páginas que los citan.\n",
+        "en": "# Code repos to watch, one per line: a local clone or a URL to clone.\n"
+              "# A URL is cloned into repos/ and fetched on every run; a local clone is left as it is.\n"
+              "# Add \"@ develop, feature/x\" to follow those branches, or \"@ *\" for all of them.\n"
+              "#   C:\\code\\hmi-tracks\n"
+              "#   https://bitbucket.example.com/scm/team/repo.git @ *\n"
+              "# The log records their commits; every page a new commit touches gets a task.\n",
+        "es": "# Repos de código que vigilar, uno por línea: un clon local o una URL que clonar.\n"
+              "# Una URL se clona en repos/ y se actualiza en cada ejecución; un clon local no se toca.\n"
+              "# Añade «@ develop, feature/x» para seguir esas ramas, o «@ *» para todas.\n"
+              "#   C:\\code\\hmi-tracks\n"
+              "#   https://bitbucket.example.com/scm/team/repo.git @ *\n"
+              "# El registro anota sus commits; cada página que toque un commit nuevo recibe una tarea.\n",
     },
     # ── the task given to the AI ──
     "rules": {
@@ -243,6 +253,17 @@ la IA dice qué página tocar, qué cambiar y por qué, y prepara su tarea.
         "es": "# {title}\n\nInstrucciones de actualización: {change}\n\nPetición de {by}: {request}\n\nMotivo: {reason}\n",
     },
     "err_request": {"en": "AI (request from {by}): {error}", "es": "IA (petición de {by}): {error}"},
+    "err_sync": {"en": "could not update {repo}: {error}", "es": "no se pudo actualizar {repo}: {error}"},
+    "code_local": {
+        "en": "# {title}\n\nUpdate instructions: Commits in the code touch what this page describes. "
+              "Check the page against them and change only what they make wrong; keep everything else. "
+              "If the page is still right, return it unchanged.\n\n{commits}\n",
+        "es": "# {title}\n\nInstrucciones de actualización: Hay commits en el código que tocan lo que "
+              "describe esta página. Contrasta la página con ellos y cambia solo lo que dejen mal; "
+              "conserva todo lo demás. Si la página sigue siendo correcta, devuélvela sin cambios.\n\n{commits}\n",
+    },
+    "code_commit": {"en": "## {repo} · {branch} · {sha} · {by}\n\n{subject}\n\n```diff\n{diff}\n```\n",
+                    "es": "## {repo} · {branch} · {sha} · {by}\n\n{subject}\n\n```diff\n{diff}\n```\n"},
     "err_git": {"en": "git log failed in {repo}: {error}", "es": "git log falló en {repo}: {error}"},
     # ── Obsidian ──
     "vault_title": {"en": "Confluence export", "es": "Export de Confluence"},

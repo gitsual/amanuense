@@ -11,8 +11,12 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DEFAULT_WS="$HOME/docs-workshop"
 [[ -d "$HOME/taller-docs" ]] && DEFAULT_WS="$HOME/taller-docs"
 WS="${AMANUENSE_WORKSPACE:-$DEFAULT_WS}"
-PY="$HERE/.venv/bin/python"
-[[ -x "$PY" ]] || PY="$(command -v python3 || command -v python)" || { echo "✗ missing: Python 3" >&2; exit 1; }
+PY=""
+for c in "$HERE/.venv/bin/python" python3.14 python3.13 python3.12 python3.11 python3 python; do
+  c="$(command -v "$c" 2>/dev/null)" || continue
+  "$c" -c 'import sys; sys.exit(0 if sys.version_info >= (3, 11) else 1)' 2>/dev/null && { PY="$c"; break; }
+done
+[[ -n "$PY" ]] || { echo "✗ missing: Python 3.11 or newer" >&2; exit 1; }
 export PYTHONPATH="$HERE/src${PYTHONPATH:+:$PYTHONPATH}"
 [[ "${1:-}" == obsidian ]] && exec "$PY" -m amanuense "$@"
 # --lang works before or after the subcommand; init only needs that one flag.

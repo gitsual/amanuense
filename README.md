@@ -14,7 +14,7 @@ They do not decide what the text says. They keep it straight, and they note who 
 <p>
   <img alt="Python 3.11+" src="https://img.shields.io/badge/python-3.11%2B-253850?style=for-the-badge&logo=python&logoColor=E9E9E7">
   <img alt="stdlib only" src="https://img.shields.io/badge/core-zero%20deps-253850?style=for-the-badge&labelColor=253850&color=AAA875">
-  <img alt="69 tests" src="https://img.shields.io/badge/69%20tests-linux%20%2B%20windows-253850?style=for-the-badge&labelColor=253850&color=283536">
+  <img alt="76 tests" src="https://img.shields.io/badge/76%20tests-linux%20%2B%20windows-253850?style=for-the-badge&labelColor=253850&color=283536">
   <img alt="MIND to Obsidian" src="https://img.shields.io/badge/MIND-%E2%86%92%20obsidian-253850?style=for-the-badge&labelColor=253850&color=43363F">
   <img alt="four agent CLIs" src="https://img.shields.io/badge/claude%20·%20codex%20·%20gemini%20·%20copilot-253850?style=for-the-badge&labelColor=253850&color=B9B9B9">
   <img alt="MIT" src="https://img.shields.io/badge/license-MIT-253850?style=for-the-badge&labelColor=253850&color=AAA875">
@@ -70,8 +70,8 @@ cd amanuense
 <details>
 <summary><strong>Windows 11</strong></summary>
 
-Install [Python](https://www.python.org/downloads/windows/) and tick *Add python.exe to PATH*.
-Then double-click `amanuense.bat`. The first run creates `Documents\docs-workshop` and opens it.
+Install [Python](https://www.python.org/downloads/windows/) 3.11 or newer. *Add python.exe to PATH*
+helps, but the launcher finds Python without it too. Then double-click `amanuense.bat`. The first run creates `Documents\docs-workshop` and opens it.
 Every later double-click analyses the folder and opens `output\index.html`.
 
 </details>
@@ -92,7 +92,8 @@ amanuense run ~/docs-workshop --ai-cli claude
 A walkthrough for Windows that takes about ten minutes. The video at the top shows the same flow.
 
 1. Clone the repo with Fork or Git Bash: `git clone https://github.com/gitsual/amanuense.git`
-2. Install [Python 3.11+](https://www.python.org/downloads/windows/) and tick *Add python.exe to PATH*.
+2. Install [Python 3.11+](https://www.python.org/downloads/windows/). Tick *Add python.exe to PATH* if the
+   installer shows it; the launcher finds Python either way.
 3. Double-click `amanuense.bat`. It creates `Documents\docs-workshop` and opens it.
 4. Fill its folders:
    - `1-confluence-export`: in MIND, open the page's «···» menu and choose Export → Export to Word →
@@ -113,7 +114,9 @@ From there:
 
 - **Who changed what:** replace the export with a newer one and run again. `output\log.html`
   logs the changes. To see authors, put a personal MIND token in a local `.env`; it never leaves your machine.
-- **Code changes:** list your Bitbucket clones in `repos.txt`. The log flags pages that a commit outdates.
+- **Code changes:** list repos in `repos.txt`, as local clones or URLs, with the branches to follow
+  (`@ develop` or `@ *`). The log flags the pages a commit outdates and prepares a task with its diff.
+- **On a schedule:** `scripts\schedule-windows.ps1` runs it every morning, fetching the repos first.
 - **Team requests:** add lines like `- Name: what to change` to `requests.md`. The AI picks the
   page and prepares its task.
 - **Obsidian:** `amanuense.bat obsidian "path\to\export.docx" "path\to\vault\MIND"`.
@@ -128,7 +131,7 @@ docs-workshop/
   2-my-docs/             your drafts: new pages, and old ones with "Update instructions:"
   3-bible/               what overrides everything: reference architecture, standards
   requests.md            change requests, one line each
-  repos.txt              local clones of the code repos
+  repos.txt              code repos to watch: local clones or URLs, "@ branch" or "@ *"
   output/                report, one task folder per page, the change log
 ```
 
@@ -157,7 +160,7 @@ records four kinds of change:
 | Source | What | Who |
 | --- | --- | --- |
 | Confluence | lines added and removed per page since the previous export | author, date and version comment from the REST API |
-| Code | commits in the clones listed in `repos.txt`, and the pages that mention the touched files | the commit author |
+| Code | commits on the followed branches of the repos in `repos.txt`, the pages that mention the touched files, and a task per page with the diff | the commit author |
 | Requests | the page the AI picked, what to change and why | whoever wrote the request |
 | Workshop | proposals ready for review | whoever ran the workshop |
 
@@ -253,7 +256,8 @@ What the team asked for, and where each piece stands.
 | Skills that produce designs ready to paste into Confluence | partial: the workshop skills; design skills planned |
 | A guide on when to use an agent and when a skill | planned |
 | Teams bots per role that update Confluence only after their owner approves | planned |
-| Workflows over the real Bitbucket repos | planned: today it reads local clones |
+| Workflows over the real Bitbucket repos | done: clones and fetches URLs, follows branches, proposes text from the diff |
+| Runs by itself every X time | done: `scripts/schedule-windows.ps1`, or cron |
 | Runs on the team's Windows laptops, next to Git Bash and Fork | done: double-click launcher, tested on Windows 11 |
 
 Nothing connects your AI to the company on its own. You choose the engine, and every change to

@@ -26,7 +26,9 @@ that the example values in the template do not end up in the new page.
 
 ## Try it in five minutes (Windows)
 
-You only need Python 3 (python.org, with "Add to PATH" ticked).
+You only need Python 3.11 or newer (python.org). Ticking "Add python.exe to PATH" helps, but the
+launcher also finds Python without it; some installers do not even show the box. If a folder in a path
+has brackets, such as `[HMI]`, write the path in quotes in the terminal: `cd "C:\code\[HMI] docs"`.
 
 1. Double-click **`amanuense.bat`** (in the root of the repo). The first time, it creates
    `Documents\docs-workshop` and opens the folder.
@@ -93,9 +95,22 @@ run the workshop. The log records:
 - **Confluence**: each page that changed since the previous export, with the lines
   added and removed. If you set up the API, it also shows who changed it, when, and
   the version comment. The first time, it only saves the reference.
-- **Code**: the commits from the local Bitbucket clones that you list in
-  `repos.txt` (one path per line), with their author. If a commit touches a file or
-  a repo that a page mentions, the log asks you to review that page.
+- **Code**: the commits of the repos you list in `repos.txt`, with their author and branch.
+  A line is a local clone (left as it is) or a URL, which is cloned into `repos/` and fetched on
+  every run. Add `@ develop, feature/x` to follow those branches or `@ *` for all of them; without
+  it, only the checked-out branch counts. If a new commit touches a file or a repo that a page
+  mentions, the log asks you to review that page and prepares its task in `output/code/`, with the
+  commits and their diff, so the AI can propose the updated text. Same process as the other tasks.
+
+  ```
+  C:\code\hmi-tracks @ develop
+  https://bitbucket.example.com/scm/team/hmi-base.git @ *
+  ```
+- **On a schedule**: `scripts\schedule-windows.ps1` runs the workshop every day at 08:00
+  (`-At 07:30`, `-Every weekly`, `-Remove`; anything after `--` is passed on, such as
+  `-- --ai-cli copilot`). It never opens the browser and never asks for a password, so save the
+  Bitbucket credentials in Git first (one manual `git clone` does it). On Linux, a cron line:
+  `0 8 * * * /path/to/amanuense.sh --no-open`.
 - **Requests**: write a line "- Name: what to change" in `requests.md`. The
   configured AI answers which page to touch, what to change and why, and
   leaves its task in `output/requests/`. The same process applies there as with

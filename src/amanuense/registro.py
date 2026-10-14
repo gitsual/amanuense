@@ -5,7 +5,9 @@ Cada ejecución del taller añade al registro (salida/registro.json y registro.h
 
   confluence  páginas que cambian entre el export anterior y el nuevo, con el autor,
               la fecha y el comentario de versión que da la API de Confluence
-  codigo      commits de los clones locales de repos.txt, con las páginas que los citan
+  codigo      commits de los repos de repos.txt (clones locales o URL que se clonan y se
+              actualizan en cada ejecución, en las ramas indicadas), con las páginas que
+              los citan; cada página que toca un commit nuevo recibe una tarea con su diff
   peticion    cada línea de peticiones.md («- Nombre: qué hay que cambiar»); la IA dice
               qué página tocar, qué cambiar y por qué, y se prepara su tarea
   taller      propuestas (RESULTADO.md) listas, con quién ejecutó el taller
@@ -38,6 +40,7 @@ from .confluence import Page, _slug, normalize_title
 
 DEFAULT_LOOKBACK_DAYS = 90
 MAX_VERSIONS = 50
+MAX_DIFF = 6000  # characters of diff per commit in a code task
 
 # Workshop names and texts, kept as module attributes; they follow the current language.
 _NAMES = {"LOG_JSON": "log_json", "LOG_HTML": "log_html", "SNAPSHOT": "snapshot", "REPOS_FILE": "repos",
@@ -168,19 +171,90 @@ def export_created(path: Path) -> str:
 
 # ── Code: commits from local clones ────────────────────────────────────────────
 
-def git_commits(repo: Path, since: str, run=subprocess.run) -> list[dict]:
-    proc = run(["git", "-C", str(repo), "log", f"--since={since}", "--no-merges", "--name-only",
-                "--format=%x1e%H%x1f%an%x1f%aI%x1f%s"], capture_output=True, text=True,
+@dataclass(frozen=True)
+class RepoSpec:
+    """One line of repos.txt: a local clone, or a URL cloned into the workshop; refs to follow."""
+    path: Path
+    url: str = ""
+    refs: tuple[str, ...] = ()
+
+
+_URL = re.compile(r"^(\w+://|[\w.-]+@[\w.-]+:)")
+_REFS = re.compile(r"\s@\s*(.+)$")
+
+
+def _remote_ref(repo: Path, ref: str, run) -> str:
+    """The freshest copy of a branch: origin's after a fetch, else the name as given."""
+    remote = f"refs/remotes/origin/{ref}"
+    proc = run(["git", "-C", str(repo), "rev-parse", "--verify", "--quiet", remote],
+               capture_output=True, text=True)
+    return remote if proc.returncode == 0 else ref
+
+
+def _all_branches(repo: Path, run) -> list[str]:
+    """Every local and remote branch by its full name, skipping aliases such as origin/HEAD."""
+    proc = run(["git", "-C", str(repo), "for-each-ref", "--format=%(refname)%09%(symref)",
+                "refs/heads", "refs/remotes"], capture_output=True, text=True)
+    if proc.returncode != 0:
+        return ["HEAD"]
+    refs = []
+    for line in proc.stdout.splitlines():
+        name, _, alias = line.partition("\t")
+        if name and not alias:
+            refs.append(name)
+    return refs or ["HEAD"]
+
+
+def _branch(source: str) -> str:
+    for prefix in ("refs/remotes/origin/", "refs/remotes/", "refs/heads/", "refs/tags/"):
+        if source.startswith(prefix):
+            return source[len(prefix):]
+    return source
+
+
+def git_commits(repo: Path, since: str, refs: tuple[str, ...] = (), run=subprocess.run) -> list[dict]:
+    """Commits since a date: of HEAD, of the given branches, or of every branch with ("*",)."""
+    if "*" in refs:
+        revs = _all_branches(repo, run)
+    else:
+        revs = [_remote_ref(repo, r, run) for r in refs] or ["HEAD"]
+    proc = run(["git", "-C", str(repo), "log", *revs, "--source", f"--since={since}", "--no-merges",
+                "--name-only", "--format=%x1e%H%x1f%an%x1f%aI%x1f%S%x1f%s"], capture_output=True, text=True,
                encoding="utf-8", errors="replace")
     if proc.returncode != 0:
         raise RuntimeError(i18n.t("err_git", repo=repo, error=(proc.stderr or "").strip()[-300:]))
     commits = []
     for record in proc.stdout.split("\x1e")[1:]:
         head, _, files = record.partition("\n")
-        sha, by, when, subject = head.split("\x1f", 3)
+        sha, by, when, source, subject = head.split("\x1f", 4)
         commits.append({"repo": Path(repo).name, "hash": sha, "by": by, "when": when, "subject": subject,
-                        "files": [f.strip() for f in files.splitlines() if f.strip()]})
+                        "branch": _branch(source), "files": [f.strip() for f in files.splitlines() if f.strip()]})
     return commits
+
+
+def git_diff(repo: Path, sha: str, run=subprocess.run) -> str:
+    """The commit's patch, cut to MAX_DIFF characters."""
+    proc = run(["git", "-C", str(repo), "show", "--format=", "--no-color", "--unified=3", sha],
+               capture_output=True, text=True, encoding="utf-8", errors="replace")
+    diff = (proc.stdout or "").strip() if proc.returncode == 0 else ""
+    return diff if len(diff) <= MAX_DIFF else diff[:MAX_DIFF] + "\n" + i18n.t("cut")
+
+
+def sync_repo(spec: RepoSpec, run=subprocess.run) -> str | None:
+    """Clones a URL line the first time and fetches it after; a local clone is left alone."""
+    if not spec.url:
+        return None
+    if (spec.path / ".git").is_dir():
+        cmd, done = ["git", "-C", str(spec.path), "fetch", "--all", "--prune", "--quiet"], "fetch"
+    else:
+        spec.path.parent.mkdir(parents=True, exist_ok=True)
+        cmd, done = ["git", "clone", "--quiet", spec.url, str(spec.path)], "clone"
+    # Never wait for a password: a scheduled run has nobody to type it.
+    env = {**os.environ, "GIT_TERMINAL_PROMPT": "0", "GCM_INTERACTIVE": "never"}
+    proc = run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace", env=env)
+    if proc.returncode != 0:
+        raise RuntimeError((proc.stderr or "").strip()[-300:])
+    return done
 
 
 def affected_pages(commit: dict, pages: list[Page]) -> list[str]:
@@ -198,12 +272,27 @@ def affected_pages(commit: dict, pages: list[Page]) -> list[str]:
     return hits
 
 
-def read_repos(root: Path) -> list[Path]:
+def read_repos(root: Path) -> list[RepoSpec]:
+    """repos.txt: one repo per line, a path or a URL, optionally "@ branch, branch" or "@ *"."""
     path = root / i18n.name("repos")
     if not path.is_file():
         return []
-    lines = path.read_text(encoding="utf-8").splitlines()
-    return [Path(l.strip()).expanduser() for l in lines if l.strip() and not l.lstrip().startswith("#")]
+    specs = []
+    for line in path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        refs: tuple[str, ...] = ()
+        m = _REFS.search(line)
+        if m:
+            refs = tuple(r.strip() for r in m.group(1).split(",") if r.strip())
+            line = line[:m.start()].strip()
+        if _URL.match(line):
+            name = re.sub(r"\.git$", "", line.rstrip("/").rsplit("/", 1)[-1].rsplit(":", 1)[-1])
+            specs.append(RepoSpec(root / i18n.name("repos_dir") / name, line, refs))
+        else:
+            specs.append(RepoSpec(Path(line).expanduser(), "", refs))
+    return specs
 
 
 # ── Change requests routed by the AI ───────────────────────────────────────────
@@ -271,6 +360,35 @@ def _request_task(out: Path, entry: dict, page: Page, template, bible: str) -> s
     return rel
 
 
+def _code_tasks(out: Path, fresh: list, pages: list[Page], template, bible: str, run) -> list[str]:
+    """One task per page that new commits touch, with those commits and their diffs."""
+    by_page: dict[str, list] = {}
+    for spec, entry in fresh:
+        for title in entry["pages"]:
+            by_page.setdefault(title, []).append((spec, entry))
+    by_title = {p.title: p for p in pages}
+    n = i18n.name
+    made = []
+    for title, hits in by_page.items():
+        page = by_title[title]
+        slug = f"{_slug(title)}-{_id('codigo', title, *(e['hash'] for _, e in hits))[:6]}"
+        rel = f"{n('code_dir')}/{slug}"
+        commits = "\n".join(i18n.t("code_commit", repo=e["repo"], branch=e["branch"], sha=e["hash"][:10],
+                                   by=e["by"], subject=e["what"], diff=git_diff(spec.path, e["hash"], run))
+                            for spec, e in hits)
+        local = i18n.t("code_local", title=title, commits=commits)
+        d = out / rel
+        d.mkdir(parents=True, exist_ok=True)
+        task = kit.Task(slug, "update", title, n("repos"), page)
+        (d / n("local_copy")).write_text(local, encoding="utf-8")
+        (d / n("current")).write_text(page.markdown, encoding="utf-8")
+        (d / n("task")).write_text(kit._prompt(task, local, template, bible), encoding="utf-8")
+        for _, e in hits:
+            e["tasks"].append(rel)
+        made.append(rel)
+    return made
+
+
 # ── The log ───────────────────────────────────────────────────────────────────
 
 def _load(path: Path, default):
@@ -328,16 +446,25 @@ def update_log(root: Path, exports: list[Path], pages: list[Page], ready: dict[s
 
     # Code: commits since the previous export (or a lookback window the first time).
     since = snap["created"] if snap else (datetime.now(timezone.utc) - timedelta(days=DEFAULT_LOOKBACK_DAYS)).isoformat()
-    for repo in read_repos(root):
+    fresh: list[dict] = []
+    for spec in read_repos(root):
         try:
-            commits = git_commits(repo, since, run)
+            sync_repo(spec, run)
+        except Exception as exc:  # offline: keep reading what was fetched before
+            errors.append(i18n.t("err_sync", repo=spec.url, error=exc))
+        try:
+            commits = git_commits(spec.path, since, spec.refs, run)
         except Exception as exc:
-            errors.append(f"git ({repo}): {exc}")
+            errors.append(f"git ({spec.path}): {exc}")
             continue
         for c in commits:
-            add({"id": _id("codigo", c["hash"]), "kind": "codigo", "when": c["when"], "by": c["by"],
-                 "page": "", "repo": c["repo"], "what": c["subject"], "files": c["files"],
-                 "pages": affected_pages(c, pages)})
+            entry = {"id": _id("codigo", c["hash"]), "kind": "codigo", "when": c["when"], "by": c["by"],
+                     "page": "", "repo": c["repo"], "branch": c["branch"], "what": c["subject"],
+                     "hash": c["hash"], "files": c["files"], "pages": affected_pages(c, pages), "tasks": []}
+            if entry["id"] not in known:
+                fresh.append((spec, entry))
+            add(entry)
+    code_tasks = _code_tasks(out, fresh, pages, template, bible, run)
 
     # Requests: route each new one, prepare its task.
     by_title = {p.title: p for p in pages}
@@ -362,9 +489,11 @@ def update_log(root: Path, exports: list[Path], pages: list[Page], ready: dict[s
 
     # Workshop: proposals that are ready, from page tasks and request tasks.
     request_tasks = {e["task"]: e for e in entries if e["kind"] == "peticion" and e.get("task")}
-    for rel, entry in request_tasks.items():
-        page = by_title.get(entry["page"])
-        task = kit.Task(Path(rel).name, "update", entry["page"], n("requests"), page)
+    side_tasks = {rel: e["page"] for rel, e in request_tasks.items()}
+    side_tasks.update({rel: title for e in entries if e["kind"] == "codigo"
+                       for rel, title in zip(e.get("tasks", []), e.get("pages", []))})
+    for rel, title in side_tasks.items():
+        task = kit.Task(Path(rel).name, "update", title, n("requests"), by_title.get(title))
         if (out / rel).is_dir() and kit._publish(out / rel, task) is not None:
             ready[rel] = task
     for rel, task in ready.items():
@@ -374,7 +503,8 @@ def update_log(root: Path, exports: list[Path], pages: list[Page], ready: dict[s
 
     (out / n("log_json")).write_text(json.dumps(entries, ensure_ascii=False, indent=1), encoding="utf-8")
     (out / n("log_html")).write_text(render_log(entries, errors), encoding="utf-8")
-    return {"entries": entries, "request_tasks": sorted(request_tasks), "errors": errors}
+    return {"entries": entries, "request_tasks": sorted(request_tasks), "code_tasks": code_tasks,
+            "errors": errors}
 
 
 def _label(prefix: str, value: str) -> str:
@@ -388,8 +518,12 @@ def _detail(e: dict) -> str:
         msg = f"<p>{t('quote', text=esc(e['message']))}</p>" if e.get("message") else ""
         return f"{esc(_label('change', e['change']))}{msg}<pre>{esc(e['what'])}</pre>"
     if e["kind"] == "codigo":
-        pages = (f"<p><b>{t('review')}</b> {esc(', '.join(e['pages']))}</p>" if e.get("pages") else "")
-        return f"{esc(e['repo'])}: {esc(e['what'])}<br><small>{esc(', '.join(e['files'][:6]))}</small>{pages}"
+        tasks = dict(zip(e.get("pages", []), e.get("tasks", [])))
+        links = [f'<a href="{esc(tasks[p])}/{n("task")}">{esc(p)}</a>' if p in tasks else esc(p)
+                 for p in e.get("pages", [])]
+        pages = f"<p><b>{t('review')}</b> {', '.join(links)}</p>" if links else ""
+        where = f"{e['repo']} · {e['branch']}" if e.get("branch") else e["repo"]
+        return f"{esc(where)}: {esc(e['what'])}<br><small>{esc(', '.join(e['files'][:6]))}</small>{pages}"
     if e["kind"] == "peticion":
         if not e.get("page"):
             return f"{t('quote', text=esc(e['request']))}<p>{t('no_page')}</p>"
