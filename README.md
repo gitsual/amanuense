@@ -2,297 +2,349 @@
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="assets/logo-dark.png">
-  <img src="assets/logo-light.png" alt="amanuense: the scribe for a team's Confluence" width="560">
+  <img src="assets/logo-light.png" alt="amanuense" width="520">
 </picture>
 
-<p>
-<em>An <strong>amanuense</strong> is the scribe who takes dictation and copies it out clean.<br>
-They do not decide what the text says. They keep it straight, and they note who said what.</em><br>
-<strong>This is that scribe for MIND, the team's Confluence in the Atlassian suite: it compares the published pages<br>with your drafts and your code, prepares one AI-ready task per page, keeps a log of who changed what,<br>and turns the whole space into an Obsidian vault.</strong>
-</p>
+**Keeps a team's Confluence in step with its drafts and its code.**<br>
+It finds what is out of date, has the AI of your choice write the fix, flags anything the AI made up,<br>
+and lets a person review, approve and publish every page from a small app on their own machine.
 
-<p>
-  <img alt="Python 3.11+" src="https://img.shields.io/badge/python-3.11%2B-253850?style=for-the-badge&logo=python&logoColor=E9E9E7">
-  <img alt="stdlib only" src="https://img.shields.io/badge/core-zero%20deps-253850?style=for-the-badge&labelColor=253850&color=AAA875">
-  <img alt="147 tests" src="https://img.shields.io/badge/147%20tests-linux%20%2B%20windows-253850?style=for-the-badge&labelColor=253850&color=283536">
-  <img alt="MIND to Obsidian" src="https://img.shields.io/badge/MIND-%E2%86%92%20obsidian-253850?style=for-the-badge&labelColor=253850&color=43363F">
-  <img alt="four agent CLIs" src="https://img.shields.io/badge/claude%20·%20codex%20·%20gemini%20·%20copilot-253850?style=for-the-badge&labelColor=253850&color=B9B9B9">
-  <img alt="MIT" src="https://img.shields.io/badge/license-MIT-253850?style=for-the-badge&labelColor=253850&color=AAA875">
-</p>
+[![ci](https://github.com/gitsual/amanuense/actions/workflows/ci.yml/badge.svg)](https://github.com/gitsual/amanuense/actions/workflows/ci.yml)
+![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-253850)
+![no dependencies](https://img.shields.io/badge/dependencies-none-AAA875)
+![Linux · macOS · Windows](https://img.shields.io/badge/runs%20on-linux%20·%20macOS%20·%20windows-283536)
+![MIT](https://img.shields.io/badge/license-MIT-43363F)
 
-<a href="#-install"><strong>Install</strong></a> ·
-<a href="#-your-first-run-step-by-step"><strong>First run</strong></a> ·
-<a href="#-the-workshop"><strong>The workshop</strong></a> ·
-<a href="#-review-and-publish"><strong>Review and publish</strong></a> ·
-<a href="#-who-changed-what"><strong>Who changed what</strong></a> ·
-<a href="#-ask-for-a-change"><strong>Ask for a change</strong></a> ·
-<a href="#-mind--obsidian"><strong>MIND → Obsidian</strong></a> ·
-<a href="#-pick-your-ai"><strong>Pick your AI</strong></a> ·
-<a href="#-the-team-repo"><strong>The team repo</strong></a> ·
-<a href="#-companion-obsidian-search"><strong>Companion</strong></a> ·
-<a href="#-why-this-exists"><strong>Why</strong></a> ·
-<a href="#-roadmap"><strong>Roadmap</strong></a> ·
-<a href="#-status"><strong>Status</strong></a>
+[What it does](#what-it-does) ·
+[Install](#install) ·
+[First run](#first-run) ·
+[Review and publish](#review-and-publish) ·
+[Change log](#the-change-log) ·
+[Radar](#the-radar-a-pass-every-morning) ·
+[AI engines](#ai-engines) ·
+[Configuration](#configuration) ·
+[Status](#status)
 
 </div>
 
----
+<p align="center"><a href="assets/video/demo-en.mp4"><img src="assets/video/demo.gif" alt="The demo at double speed: the report, an unsourced figure flagged, the review inbox, why a page changed, a conflict decided by hand, publishing and undoing, the change log, the radiator, the delivery, the radar and the Obsidian vault" width="800"></a></p>
 
-<p align="center"><a href="assets/video/demo-en.mp4"><img src="assets/video/demo.gif" alt="The demo at double speed: the report, the change view with unsourced data flagged, the paste-ready page, the change log and the Obsidian vault" width="800"></a></p>
-
-<div align="center"><sub>Click for the narrated demo: <a href="assets/video/demo-en.mp4">English</a> (2 min) ·
-<a href="assets/video/demo-es.mp4">Spanish</a> (2 min). Made-up space, people and repo; the AI answers are scripted
-so the take is reproducible. Rebuild it with <code>scripts/render-assets.sh demo [es]</code>.</sub></div>
-
-<p align="center"><a href="assets/linkedin/amanuense-carousel-en.pdf"><img src="assets/linkedin/preview.png" alt="Four slides of the carousel: the AI made up a number, every change line by line, unsourced data gets flagged, you approve and you paste" width="900"></a></p>
-
-<div align="center"><sub>The same flow in ten slides: <a href="assets/linkedin/amanuense-carousel-en.pdf">English</a> ·
-<a href="assets/linkedin/amanuense-carousel-es.pdf">Spanish</a> (PDF). Built from real screenshots with
-<code>assets/linkedin/build-carousel.py</code>.</sub></div>
+<p align="center"><sub>Narrated demo: <a href="assets/video/demo-en.mp4">English</a> · <a href="assets/video/demo-es.mp4">Spanish</a> (about 3 min).
+Everything in it is made up: the team, the people, the repos, Confluence and the AI's answers all run on one machine against
+<a href="demo/fakes.py"><code>demo/fakes.py</code></a>. Rebuild it with <code>scripts/render-assets.sh demo [es]</code>.</sub></p>
 
 ---
 
-## ⬇ Install
+## What it does
 
-It needs Python 3.11 and nothing else. There is no setup step and no dependency.
+Documentation drifts. A page says alerts are kept for 24 hours; a commit merged yesterday keeps them for 72;
+someone asked in the chat for a different behaviour and nobody wrote it down. amanuense watches the three
+sources a team actually changes and turns the gaps into reviewed edits:
 
-```sh
-git clone git@github.com:gitsual/amanuense.git
-cd amanuense
-./amanuense.sh          # first run creates ~/docs-workshop and tells you what to drop in it
-```
+| Source | What amanuense does with it |
+| --- | --- |
+| **Confluence** (its "Export to Word") | Compares every page with your drafts: what to update, what is new, duplicated, contradictory, or only in Confluence. With an API token it also records who changed each page and when. |
+| **Your drafts** (`.docx`, `.md`, `.txt`) | A draft with the same title and an `Update instructions:` paragraph updates that page; anything else becomes a new page, optionally on the team template. |
+| **Code** (the repos in `repos.txt`) | Follows the branches you choose. When a commit touches something a page talks about, the AI triages it (update, chain onto another proposal, noise or doubtful) and drafts the new text from the diff. |
+| **Requests** (`requests.md`) | `- Samir: alerts must reach the boards within 30 seconds`. The AI picks the page, and the request becomes one more proposal. |
 
-> [!NOTE]
-> The workshop speaks English by default: folders, reports and the AI prompts. Run it once with
-> `--lang es` (or set `AMANUENSE_LANG=es`) for a Spanish workshop; a workshop that already has
-> Spanish folders stays Spanish. The step-by-step guide is [docs/guide.md](docs/guide.md)
-> ([en español](docs/guia.md)).
+Every proposal then goes through the same path:
+
+1. **One task per page** (`TASK.md`) with the rules, the current page, the sources and the team's "bible", ready for any AI.
+2. **The AI writes `RESULT.md`**, either automatically (an agent CLI or a local model) or by you pasting the task into a chat.
+3. **Unsourced data is flagged**: figures, versions, names or identifiers that appear in none of the inputs are listed before anyone approves.
+4. **A person reviews it** in the review app, side by side with what Confluence has today, resolves every `CONFLICT`, and approves or discards it.
+5. **It is published** by hand (copy and paste) or through the Confluence REST API, with a backup and an undo.
+
+Around that core:
+
+- **A change log** of what changed in Confluence, in the code and in the workshop, and who did each thing.
+- **A capability radiator** that reads every branch of every repo, compares versions with your npm registry and links each package to the pages that cite it.
+- **A delivery** folder or zip for when someone else publishes.
+- **A radar** script that runs a pass unattended every morning and keeps a snapshot history in Git.
+- **An Obsidian vault** from the same Word export, one note per page.
+- **A team repo skeleton** with shared docs, agents and skills for Claude Code, Copilot, Codex and Gemini.
+
+<table>
+<tr>
+<td width="50%"><img src="assets/review/report.png" alt="The workshop report: one page to update, one new page, and the tasks with their state"><br><sub>The report of a run.</sub></td>
+<td width="50%"><img src="assets/review/unsourced.png" alt="CHANGES.html of a new page with one unsourced figure flagged at the top"><br><sub>A figure the AI made up, flagged before review.</sub></td>
+</tr>
+<tr>
+<td><img src="assets/review/inbox.png" alt="The review app inbox with four pages, one item set aside by the triage, and a side-by-side diff"><br><sub>The review app: inbox, set-aside commits and the diff.</sub></td>
+<td><img src="assets/review/why.png" alt="The Why tab: the change, its reason and the commit that triggered it"><br><sub>Why the AI changed a page, down to the commit.</sub></td>
+</tr>
+<tr>
+<td><img src="assets/review/conflict.png" alt="Deciding a CONFLICT by hand in the review app"><br><sub>A conflict blocks approval until a person decides.</sub></td>
+<td><img src="assets/review/publish.png" alt="The publish dialog: the page is found, unchanged since the export, and nothing would be lost"><br><sub>Checks before publishing.</sub></td>
+</tr>
+</table>
 
 <details>
-<summary><strong>Windows 11</strong></summary>
+<summary><strong>More screenshots</strong>: code review diff, published page, change log, radiator, radar, Obsidian</summary>
 
-Install [Python](https://www.python.org/downloads/windows/) 3.11 or newer. *Add python.exe to PATH*
-helps, but the launcher finds Python without it too. Then double-click `amanuense.bat`. The first run creates `Documents\docs-workshop` and opens it.
-Every later double-click opens the review app in your browser.
+<img src="assets/review/diff.png" alt="A page updated from a commit, side by side with the current Confluence page">
+<img src="assets/review/published.png" alt="A page marked as published, with a link to Confluence and an undo button">
+<img src="assets/review/log.png" alt="The change log: Confluence edits with their authors, commits and workshop actions">
+<img src="assets/review/radiator.png" alt="The capability radiator: packages, versions per branch, registry versions and citing pages">
+<img src="assets/review/radar.png" alt="A terminal with the cron line, the radar log and the snapshot commits in the team repo">
+<img src="assets/review/obsidian.png" alt="The Confluence export as an Obsidian vault">
 
 </details>
 
-<details>
-<summary><strong>As a package</strong></summary>
+## Install
+
+amanuense needs **Python 3.11 or newer** and nothing else: the core uses only the standard library.
+Git is needed only to follow code repos.
+
+**Windows 11.** Install [Python](https://www.python.org/downloads/windows/) (ticking *Add python.exe to PATH*
+helps, but the launcher finds Python without it). Clone or download this repo and double-click **`amanuense.bat`**.
+The first run creates `Documents\docs-workshop` and opens it. If a folder in a path has brackets,
+quote the path in the terminal.
+
+**Linux and macOS.**
 
 ```sh
-pip install -e .        # gives you the `amanuense` command
+git clone https://github.com/gitsual/amanuense.git
+cd amanuense
+./amanuense.sh            # the first run creates ~/docs-workshop
+```
+
+**As a package** (any OS):
+
+```sh
+pip install -e .          # gives you the `amanuense` command
 amanuense init ~/docs-workshop
 amanuense run ~/docs-workshop --ai-cli claude
 ```
 
-</details>
+The workshop speaks English by default. `--lang es` (or `AMANUENSE_LANG=es`) creates a Spanish one;
+an existing workshop keeps its own language. The full guide is [docs/guide.md](docs/guide.md)
+([en español](docs/guia.md)).
 
-## 🚀 Your first run, step by step
+## First run
 
-A walkthrough for Windows that takes about ten minutes. The video at the top shows the same flow.
-
-1. Clone the repo with Fork or Git Bash: `git clone https://github.com/gitsual/amanuense.git`
-2. Install [Python 3.11+](https://www.python.org/downloads/windows/). Tick *Add python.exe to PATH* if the
-   installer shows it; the launcher finds Python either way.
-3. Double-click `amanuense.bat`. It creates `Documents\docs-workshop` and opens it.
-4. Fill its folders:
-   - `1-confluence-export`: in MIND, open the page's «···» menu and choose Export → Export to Word →
-     *This page and its children*.
-   - `2-my-docs`: your drafts. A draft that replaces a page keeps the page's title and has a
-     paragraph that starts with `Update instructions:`.
-   - `3-bible`: what overrides everything else, such as the reference architecture, the Nexus
-     requirements and the repo standards.
-5. Double-click again. The review app opens; press **Look for changes**. It writes the report
-   (`output\index.html`): pages to update, new pages, duplicates and leftovers.
-6. Every page gets a `TASK.md`. Give it to the AI your company allows, and save the answer as
-   `RESULT.md` in the same folder. If Copilot CLI is installed, run `amanuense.bat --ai-cli copilot`
-   and it does this step for you.
-7. In the app, go through the pages: the diff, the data the AI may have made up, the CONFLICT notes
-   to decide. Approve each one and publish it, by hand (copy and paste) or, with a token, straight
-   through the Confluence API. See [Review and publish](#-review-and-publish).
-
-From there:
-
-- **Who changed what:** replace the export with a newer one and run again. `output\log.html`
-  logs the changes. To see authors, put a personal MIND token in a local `.env`; it never leaves your machine.
-- **Code changes:** list repos in `repos.txt`, as local clones or URLs, with the branches to follow
-  (`@ develop` or `@ *`). The log flags the pages a commit outdates and prepares a task with its diff.
-- **On a schedule:** `scripts\schedule-windows.ps1` runs it every morning, fetching the repos first.
-- **Team requests:** add lines like `- Name: what to change` to `requests.md`. The AI picks the
-  page and prepares its task.
-- **Obsidian:** `amanuense.bat obsidian "path\to\export.docx" "path\to\vault\MIND"`.
-
-Nothing is uploaded anywhere. Nothing reaches MIND until a person has reviewed and approved it.
-
-## 📝 The workshop
+The workshop is a plain folder:
 
 ```
 docs-workshop/
-  1-confluence-export/   the Word export of the section (page + children)
-  2-my-docs/             your drafts: new pages, and old ones with "Update instructions:"
-  3-bible/               what overrides everything: reference architecture, standards
-  requests.md            change requests, one line each
-  repos.txt              code repos to watch: local clones or URLs, "@ branch" or "@ *"
-  output/                report, one task folder per page, the change log
+├── 1-confluence-export/   the Word export of the space (page "···" → Export → Export to Word → this page and its children)
+├── 2-my-docs/             your drafts (.docx, .md, .txt)
+├── 3-bible/               what overrides everything; a file with "template" in its name is the template for new pages
+├── repos.txt              optional: code repos and branches to follow
+├── requests.md            optional: "- Name: what to change"
+└── output/                everything amanuense writes
 ```
 
-Each run:
+1. Drop the export and your drafts in. A draft that replaces a page has **the same title** and a
+   paragraph starting with `Update instructions:`. A new page that must follow the template has the
+   line `Template: yes`.
+2. Run the launcher again. The review app opens; press **Look for changes**.
+3. With an AI configured ([AI engines](#ai-engines)) the proposals are written for you. Without one,
+   give each `output/tasks/*/TASK.md` to your AI and save its answer as `RESULT.md` next to it.
+4. Review, approve and publish each page in the app.
 
-1. Compares the export with your drafts and writes a report. It lists what to update, what is new,
-   what is duplicated and which Confluence pages have no local counterpart.
-2. Writes a `TASK.md` per page. The file carries the rules, the instructions, the current page,
-   the template skeleton and the bible. You can give it to any AI.
-3. Turns every `RESULT.md` it finds into two pages. `FOR-CONFLUENCE.html` is ready to copy and
-   paste. `CHANGES.html` is the diff you approve.
-4. Flags **data without a source**: figures, versions, acronyms or names in the result that appear
-   nowhere in what the AI was given.
+Running it again is safe: it never touches your input folders and never overwrites a `RESULT.md`.
+Step by step: [docs/guide.md](docs/guide.md#try-it-in-five-minutes-windows).
 
-It never writes into the input folders and never overwrites a `RESULT.md`.
+## Review and publish
 
-The Spanish workshop (`--lang es`) uses `1-export-confluence/`, `2-mi-documentacion/`, `3-biblia/`,
-`peticiones.md`, `salida/`, `TAREA.md` and `RESULTADO.md`, and the marker
-`Instrucciones de actualización:`. Both markers work in either language.
+`amanuense.bat` / `./amanuense.sh` with no arguments, or `amanuense review <workshop>`, opens the review app.
+It is a local page served on `127.0.0.1`, works offline and needs no installation.
 
-## ✅ Review and publish
+- **Inbox**: one row per page with its origin (your drafts, a request and who asked, or a code review),
+  its notes and its state (to review, approved, published, discarded), with filters and a progress bar.
+  Commits the triage set aside as noise or doubtful are folded below with the reason; **Write it anyway**
+  sends one to the AI.
+- **Five tabs per page**: **Changes** (side by side with Confluence), **How it will look**, **Edit**
+  (Markdown with live preview; the AI's version is kept as `RESULT.ia.md`), **Why** (the request or the
+  exact commits, and what the AI was given) and **History** (who changed the page in Confluence).
+- **Notes**: every `PENDING` and `CONFLICT` is listed on top. **Decide** replaces a conflict with your
+  text; a page cannot be approved while one is open. With an AI configured you can ask it to rework a page.
+- **Discard** with a reason, **Approve**, **Next**. If Confluence changes after you approve, the page
+  goes back to review.
 
-<p align="center"><img src="assets/review/inbox.png" alt="The review app: the inbox on the left, a page with its notes and the side-by-side diff on the right" width="860"></p>
+**Publishing.** *By hand* always works: copy the formatted page, paste it into Confluence, mark it
+published. *Automatically*, with a Confluence address, space and personal token in **Settings**:
 
-The double-click opens a small local app (`127.0.0.1` only, no install, works offline). One inbox
-holds every page the run proposed **and** every task the triage set aside, with the reason. For each
-page you get the diff against MIND, a live-preview editor, the request or commits behind it, and its
-PENDING / CONFLICT notes. Decide each CONFLICT in place, approve, and publish:
+- it **blocks** if the page changed in Confluence after your export, and says who changed it and when;
+- it **blocks** if the page holds something it cannot rebuild (images, attachments, macros, mentions)
+  and switches to the guided manual mode, listing what would be lost;
+- it saves the current version first (`output/mind-copias/`), writes the page, reads it back and only
+  marks it published if the version matches;
+- **Undo** puts the saved copy back as a new version.
 
-- **By hand**, always: *Copy page* puts the formatted page on the clipboard, you paste it into MIND
-  and confirm. Copying alone never counts as published.
-- **Through the API**, with a personal token set in *Settings*. It blocks when MIND changed after your
-  export or when the page holds something it cannot rebuild (images, attachments, Jira macros), backs
-  up the previous version, reads the page back to verify, and can undo.
+Details and the remaining safeguards: [docs/guide.md](docs/guide.md#publishing).
 
-The token lives outside the workshop (DPAPI-encrypted on Windows) and never reaches the browser.
-Details in the [guide](docs/guide.md#review-and-publish-the-app).
+## The change log
 
-## 👥 Who changed what
+Each run updates `output/log.html`:
 
-To update, download the newest Word export and drop it in place of the old one. `output/log.html` then
-records four kinds of change:
+- **Confluence**: every page that changed since the previous export, with the lines added and
+  removed and, with a token, who changed it, when and the version comment.
+- **Code**: the commits of the repos in `repos.txt`, with author and branch. A line is a local clone or
+  a URL (cloned into `repos/` and fetched on every run); `@ develop, feature/x` follows those branches and
+  `@ *` all of them. The first run looks back 90 days.
+- **Requests** routed to their page, and **the workshop**: every proposal, approval, discard,
+  publication and undo, with the name of who did it.
 
-| Source | What | Who |
-| --- | --- | --- |
-| Confluence | lines added and removed per page since the previous export | author, date and version comment from the REST API |
-| Code | commits on the followed branches of the repos in `repos.txt`, the pages that mention the touched files, and a task per page with the diff | the commit author |
-| Requests | the page the AI picked, what to change and why | whoever wrote the request |
-| Workshop | proposals ready for review | whoever ran the workshop |
+Pages longer than 40,000 characters are edited with `SEARCH/REPLACE` blocks instead of being rewritten;
+an edit that does not apply exactly becomes a `PENDING` note, so nothing is lost silently.
+More: [docs/guide.md](docs/guide.md#change-log-what-changed-and-who-did-it).
 
-The Word export carries no authors, so the "who" for Confluence comes from the API. To enable it,
-put a personal access token in a local `.env`:
-
-```
-AMANUENSE_CONFLUENCE_URL=https://your-confluence
-AMANUENSE_CONFLUENCE_TOKEN=...
-AMANUENSE_CONFLUENCE_SPACE=SPACEKEY
-```
-
-Data Center uses the token as a Bearer token on `/rest/api`. Cloud also needs
-`AMANUENSE_CONFLUENCE_USER` and uses `/wiki/rest/api`. Without a token the log still records what
-changed, but not who changed it.
-
-## ✋ Ask for a change
-
-Add a line to `requests.md`:
-
-```
-- Ana: the deployment port is now 8443
-```
-
-On the next run, the AI reads the request and the list of pages. It answers which page to change,
-what to change and why, and the workshop prepares that page's task under `output/requests/`.
-If the AI names no valid page, the request is retried on the next run.
-
-## 🪨 MIND → Obsidian
-
-The same Word export becomes an Obsidian vault, so the whole space can be read and linked offline:
+## The capability radiator
 
 ```sh
-./amanuense.sh obsidian ~/docs-workshop/1-confluence-export/MIND.docx ~/vault/MIND
-amanuense.bat obsidian EXPORT.docx VAULT\MIND      # Windows
+./amanuense.sh radiator            # or: More → Capability radiator, in the app
 ```
 
-Root pages (H1) become folders with an `_index.md`, child pages (H2) become notes, and a child with
-its own children (H3) becomes a folder too. Images land in `_media/` as `![[...]]` embeds, and every
-index links its children. It refuses to overwrite existing notes unless you pass `--force`.
-`assets/obsidian/letravora.css` is the CSS snippet used in the video.
+For every repo in `repos.txt` it reads all branches, takes the version from `package.json` (or
+`brick.metadata.json`), asks your npm registry which versions are published and tells whether each
+branch is the same, ahead or behind. Each package links to the Confluence pages that cite it.
+Output: `output/radiador/index.html`, `catalogo.json` and a page ready to paste into Confluence.
+Configure the scope, the registry and the categories in `<workshop>/radiador.json`.
 
-## 🤖 Pick your AI
+## Hand it over
 
-| Flag | Engine |
+```sh
+./amanuense.sh deliver --zip       # amanuense.bat deliver --zip
+```
+
+Gathers every proposal that is not discarded into `output/delivery-DATE/` (`pages/`, `new/`, the
+radiator) with a `README.md` that lists where each page came from, which ones only their author can
+decide and every open note. `--zip` also zips it. See [docs/guide.md](docs/guide.md#hand-it-over).
+
+## The radar: a pass every morning
+
+[`scripts/radar.sh`](scripts/radar.sh) runs one unattended pass over a workshop: it checks that the
+repos are reachable, looks for changes, writes the proposals with the configured AI, rebuilds the
+radiator if the workshop has a `radiador.json`, and can commit a snapshot of the workshop to the Git
+repo it lives in. It never opens a browser and never asks for a password.
+
+```sh
+scripts/radar.sh --workspace ~/team-docs/docs-workshop --commit
+scripts/radar.sh --commit --push --deliver -- --ai-cli codex     # anything after -- goes to `amanuense run`
+```
+
+| Flag | |
 | --- | --- |
-| `--ai-cli claude` | Claude Code (`claude -p`) |
-| `--ai-cli codex` | Codex (`codex exec`, read-only sandbox) |
-| `--ai-cli gemini` | Gemini CLI |
-| `--ai-cli copilot` | GitHub Copilot CLI |
-| `--ai-url URL --ai-model M` | any OpenAI-compatible API (Ollama, LM Studio, vLLM) |
+| `--workspace DIR` | the workshop (default `AMANUENSE_WORKSPACE`, else `~/docs-workshop`) |
+| `--env FILE` | settings file (default the `.env` next to `amanuense.sh`) |
+| `--log FILE` | where to append the pass (default `<workshop>/radar.log`) |
+| `--commit` | commit `chore(radar): snapshot <date> UTC`, only if something besides timestamps changed |
+| `--push` | also push (implies `--commit`; rebases first if the tree is clean) |
+| `--deliver` | also build the delivery folder |
 
-The prompt always goes to the engine on stdin, and each call runs in an empty temporary folder.
-With no AI configured, you paste each `TASK.md` into a chat yourself.
+Exit codes: `0` done, `1` setup error, `2` bad option, `3` another pass is running, `4` a repo is
+unreachable (no VPN, no network: it stops at once and the next pass tries again), `5` push rejected.
+The change-log name comes from `AMANUENSE_USER`, else from `git config user.name`.
 
-## 🗂 The team repo
+Schedule it:
 
-`src/amanuense/skeleton/en/` (or `es/`) is a starting point for the team's documentation repo. It
-holds the bible, the shared docs, one agent and three skills. Write the skills and agents once, then run
-`amanuense agents PATH` to generate the native files for each tool: `.claude/`, `.agents/`,
-`.codex/`, `.gemini/` and `.github/agents/`.
+- **cron**: `30 7 * * 1-5  ~/amanuense/scripts/radar.sh --workspace ~/team-docs/docs-workshop --commit`
+- **systemd** (user timer):
 
-## 🔗 Companion: obsidian-search
+  ```ini
+  # ~/.config/systemd/user/amanuense-radar.service
+  [Service]
+  Type=oneshot
+  ExecStart=%h/amanuense/scripts/radar.sh --commit
 
-[obsidian-search](https://github.com/gitsual/obsidian-search) is a local semantic search engine.
-When both are installed in the same Python, `--content` uses its embeddings to match renamed pages
-and duplicated content, and `--contradictions` uses its NLI judge to find sentences that contradict
-each other. Without it, everything else works.
+  # ~/.config/systemd/user/amanuense-radar.timer
+  [Timer]
+  OnCalendar=Mon..Fri 07:30
+  Persistent=true
+  [Install]
+  WantedBy=timers.target
+  ```
 
-## 💡 Why this exists
+  then `systemctl --user enable --now amanuense-radar.timer`.
+- **Windows Task Scheduler** through Git Bash:
+  `powershell -ExecutionPolicy Bypass -File scripts\schedule-radar.ps1 -At 08:30 -Commit`
+  (`-Every weekly`, `-Push`, `-Deliver`, `-Workspace`, `-Remove`; extra `amanuense run` flags after `--`).
+  A missed run starts as soon as the laptop is on.
 
-| | Confluence alone | A chat with the AI | amanuense |
-| --- | --- | --- | --- |
-| Drafts vs published pages | by hand | paste both, every time | report on every run |
-| Who changed a page | page history, one page at a time | no | log across all pages |
-| Code changes that outdate a page | no | no | flagged per commit |
-| Invented data | n/a | you have to spot it | flagged before you approve |
-| Your documents leave the machine | n/a | yes | only to the AI you choose |
+With `--commit` the team repo becomes the history of the documentation: one snapshot per day that
+something changed, and `git diff` between any two mornings. Save the Git credentials once by hand
+before scheduling it. The older [`scripts/schedule-windows.ps1`](scripts/schedule-windows.ps1) still
+schedules a plain `amanuense run` without snapshots.
 
-## 🧭 Roadmap
+## AI engines
 
-What the team asked for, and where each piece stands.
+amanuense never picks an AI for you and works without one: every task is a self-contained
+`TASK.md` you can paste into any chat.
 
-| Goal | Status |
+| Engine | How | Notes |
+| --- | --- | --- |
+| Claude Code, Codex, Gemini CLI, Copilot CLI | `--ai-cli claude` (`codex`, `gemini`, `copilot`) or `AMANUENSE_AI_CLI` | must be installed and signed in; each task goes in on stdin and the agent runs in an empty temporary folder |
+| Any OpenAI-compatible API (Ollama, LM Studio, vLLM...) | `--ai-url http://localhost:11434/v1 --ai-model qwen3-coder` or `AMANUENSE_AI_URL` / `AMANUENSE_AI_MODEL` (`AMANUENSE_AI_KEY` if needed) | a local model keeps everything on the machine |
+| None | paste `TASK.md`, save `RESULT.md` | |
+
+The unsourced-data check works the same with all of them. Use only an AI your organisation allows for
+these documents.
+
+## Configuration
+
+Everything is optional. Set it in the environment or in a `.env` next to the launchers (one
+`KEY=VALUE` per line, without quotes or spaces in the value; `.env` is git-ignored). The app's
+**Settings** keep the Confluence address, space, token and AI in your user folder, never in the
+workshop; an environment variable wins over Settings, and `run` (so the radar) reads only the
+environment.
+
+| Variable | What |
 | --- | --- |
-| Less, coherent documentation: duplicates and orphan pages flagged | done: report on every run |
-| Confluence vs local drafts, with one source of truth | done: report, diff and paste-ready page |
-| Know who changed what, in Confluence and in code | done: change log; authors need the REST API |
-| Change requests in plain words, routed to the right page | done: `requests.md` |
-| A bible that overrides everything (reference architecture, requirements, repo standards) | done: `3-bible/`, fed to every task |
-| MIND readable and linkable offline | done: `amanuense obsidian` |
-| A shared team repo with docs, agents and skills | done: skeleton plus `amanuense agents` |
-| Skills that produce designs ready to paste into Confluence | partial: the workshop skills; design skills planned |
-| A guide on when to use an agent and when a skill | planned |
-| Teams bots per role that update Confluence only after their owner approves | planned |
-| Workflows over the real Bitbucket repos | done: clones and fetches URLs, follows branches, proposes text from the diff |
-| Runs by itself every X time | done: `scripts/schedule-windows.ps1`, or cron |
-| Runs on the team's Windows laptops, next to Git Bash and Fork | done: double-click launcher, tested on Windows 11 |
+| `AMANUENSE_WORKSPACE` | the workshop folder (default `~/docs-workshop`, `Documents\docs-workshop` on Windows) |
+| `AMANUENSE_LANG` | `en` or `es`, for a new workshop |
+| `AMANUENSE_USER` | name written in the change log |
+| `AMANUENSE_CONFLUENCE_URL`, `_SPACE`, `_TOKEN` | Confluence base address, space key, personal access token |
+| `AMANUENSE_CONFLUENCE_USER` | account e-mail, Confluence Cloud only |
+| `AMANUENSE_AI_CLI` | `claude`, `codex`, `gemini` or `copilot` |
+| `AMANUENSE_AI_URL`, `_MODEL`, `_KEY` | an OpenAI-compatible API instead of an agent |
+| `AMANUENSE_CONFIG_DIR` | another folder for the app's Settings |
+| `RADAR_PROBE_TIMEOUT` | seconds `radar.sh` waits for the first repo (default 60) |
 
-Nothing connects your AI to the company on its own. You choose the engine, and every change to
-Confluence is pasted by a person after reviewing the diff.
+Inside the workshop: `repos.txt`, `requests.md` and `radiador.json`. Full reference:
+[docs/guide.md](docs/guide.md#configuration-what-you-can-set-and-where).
 
-## 📍 Status
+## More
 
-- **Tested:** the whole suite on Linux and on Windows 11. On Windows that includes a double-click
-  run and a request routed through a local Ollama. Claude Code and Codex were run live as
-  engines on Linux.
-- **Not tested yet:** the Confluence API against a real server. It is covered by a fake that
-  answers like Data Center. Gemini CLI and Copilot CLI have not been tested live.
-- The Confluence API only answers from inside your organisation's network. The log runs fine
-  without it.
+- **Obsidian**: `./amanuense.sh obsidian EXPORT.docx ~/Vault/Docs` turns the export into a vault, one
+  folder per root page, one note per child, images in `_media/`, linked indexes. `--force` rewrites an
+  existing export. A matching theme is in [`assets/obsidian/letravora.css`](assets/obsidian/letravora.css).
+  See [docs/guide.md](docs/guide.md#move-mind-to-obsidian).
+- **Duplicates by content**: with [obsidian-search](https://github.com/gitsual/obsidian-search)
+  installed in the same Python, `--content` also finds renamed pages and duplicates by meaning, and
+  `--content --contradictions` looks for sentences that contradict each other. Without it, matching is by title.
+- **The team repo**: [`src/amanuense/skeleton/en/`](src/amanuense/skeleton/en/README.md) is a skeleton
+  for the team's shared documentation repo, with agents and skills that follow the same rules as the
+  workshop. `amanuense agents PATH` writes the native files for each tool.
+
+## Privacy and security
+
+- Everything runs on your machine. Your documents go only to the AI you configure, and an agent CLI
+  only sees the task, from an empty temporary folder.
+- The review app listens on `127.0.0.1` only, with a per-run token in the URL, Host and Origin checks
+  and a strict Content Security Policy.
+- The Confluence token is stored in your user folder (encrypted with DPAPI on Windows, mode 600
+  elsewhere), is never sent to the browser and never goes into a delivery. Publishing requires `https`
+  except to `localhost`.
+- Nothing reaches Confluence without a person approving it.
+
+## Status
+
+- **Tested**: the full suite on Linux and Windows 11 (CI on Python 3.11 and 3.12), including
+  `radar.sh` under Git Bash. The demo runs every feature end to end through the real code against
+  fakes. Claude Code and Codex have been used live as engines.
+- **Not tested yet**: publishing against a real Confluence server (covered by a fake that answers
+  like Data Center), and Gemini CLI and Copilot CLI live.
+- Pages with images, attachments or macros can only be published by hand.
+
+## Roadmap
+
+- Skills that produce designs ready to paste into Confluence.
+- Per-role chat bots that propose changes and publish only after their owner approves.
+- A guide on when to use an agent and when a skill.
 
 ## License
 
-MIT
+[MIT](LICENSE).
