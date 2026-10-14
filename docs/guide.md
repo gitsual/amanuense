@@ -76,6 +76,14 @@ browser. It runs only on your computer (`127.0.0.1`), needs no installation and 
 - **Look for changes** runs from the top bar; the **More** menu builds the capability radiator,
   prepares the delivery zip and opens the change log.
 
+- **Add documentation** (top bar) opens the intake screen: drop files or folders, or use
+  **Choose files** / **Choose a folder**. It lists what will be used and what is set aside (exact
+  copies, noise listed in `intake-ignore.txt`, empty files, PDF and other formats it cannot read),
+  uploads to `2-my-docs/intake-<date>/` with a progress bar and compares the pile with the current
+  Confluence space: read live by API when Confluence is configured, otherwise from the Word export
+  in `1-confluence-export/`. The summary says which source was used, how many pages get a proposal
+  and which files have no page; **Make it a new page** takes effect on the next comparison.
+
 Every action goes into `output/log.html` with your name (`AMANUENSE_USER`, or the one you set in
 the app).
 
@@ -205,6 +213,7 @@ never Settings.
 | `AMANUENSE_CONFLUENCE_SPACE` | Space key of the pages | `DOCS` |
 | `AMANUENSE_CONFLUENCE_TOKEN` | Personal access token (never commit it) | |
 | `AMANUENSE_CONFLUENCE_USER` | Account e-mail, only for Confluence Cloud | `ana@example.com` |
+| `AMANUENSE_CONFLUENCE_ROOT` | Only compare with the pages under this page ID | `123456` |
 | `AMANUENSE_AI_CLI` | Agent to use: `claude`, `codex`, `gemini`, `copilot` | `copilot` |
 | `AMANUENSE_AI_URL`, `AMANUENSE_AI_MODEL`, `AMANUENSE_AI_KEY` | OpenAI-compatible AI instead of an agent | `http://localhost:11434/v1` |
 | `AMANUENSE_USER` | Name written in the change log | `ana.ruiz` |

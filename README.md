@@ -164,6 +164,14 @@ It is a local page served on `127.0.0.1`, works offline and needs no installatio
 - **Discard** with a reason, **Approve**, **Next**. If Confluence changes after you approve, the page
   goes back to review.
 
+**Add documentation.** Drop files or whole folders (10 or a few thousand) on **Add documentation**.
+Before anything is uploaded the app shows what it will use and what it sets aside: exact copies,
+noise (`node_modules/`, `build/`, logs… adjust it in `intake-ignore.txt`), empty files and formats it
+cannot read (PDF, images). It reads `.md`, `.markdown`, `.txt`, `.docx`, `.html` and `.htm`. The files
+land in `2-my-docs/intake-<date>/` and are compared with the **current** Confluence space, read live
+through the API when Confluence is configured (otherwise with the Word export); the app says which
+source it used. Files with no matching page are ranked as candidates for a new page.
+
 **Publishing.** *By hand* always works: copy the formatted page, paste it into Confluence, mark it
 published. *Automatically*, with a Confluence address, space and personal token in **Settings**:
 
@@ -298,6 +306,7 @@ environment.
 | `AMANUENSE_USER` | name written in the change log |
 | `AMANUENSE_CONFLUENCE_URL`, `_SPACE`, `_TOKEN` | Confluence base address, space key, personal access token |
 | `AMANUENSE_CONFLUENCE_USER` | account e-mail, Confluence Cloud only |
+| `AMANUENSE_CONFLUENCE_ROOT` | only read the pages under this page ID when comparing |
 | `AMANUENSE_AI_CLI` | `claude`, `codex`, `gemini` or `copilot` |
 | `AMANUENSE_AI_URL`, `_MODEL`, `_KEY` | an OpenAI-compatible API instead of an agent |
 | `AMANUENSE_CONFIG_DIR` | another folder for the app's Settings |

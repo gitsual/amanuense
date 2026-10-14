@@ -77,6 +77,14 @@ conexión. `amanuense review <taller> [--no-open]` la arranca a mano.
 - **Buscar cambios** está en la barra superior; el menú **Más** genera el radiador de capacidades,
   prepara el zip de la entrega y abre el registro de cambios.
 
+- **Añadir documentación** (barra superior) abre la pantalla de carga: suelta ficheros o carpetas,
+  o usa **Elegir ficheros** / **Elegir una carpeta**. Muestra qué se usará y qué se aparta (copias
+  exactas, ruido listado en `ignorar-al-cargar.txt`, ficheros vacíos, PDF y otros formatos que no
+  lee), lo sube a `2-mi-documentacion/intake-<fecha>/` con barra de progreso y lo compara con el
+  space actual de Confluence: leído en vivo por API si Confluence está configurado; si no, con la
+  exportación de Word de `1-export-confluence/`. El resumen indica la fuente usada, cuántas páginas tienen propuesta y qué
+  ficheros no tienen página; **Hacer página nueva** se aplica en la siguiente comparación.
+
 Cada acción queda en `salida/registro.html` con tu nombre (`AMANUENSE_USER`, o el que pongas en la app).
 
 ### Publicar
@@ -208,6 +216,7 @@ las variables de entorno, nunca los Ajustes.
 | `AMANUENSE_CONFLUENCE_SPACE` | Clave del space de las páginas | `DOCS` |
 | `AMANUENSE_CONFLUENCE_TOKEN` | Token personal (nunca lo subas al repo) | |
 | `AMANUENSE_CONFLUENCE_USER` | Correo de la cuenta, solo para Confluence Cloud | `ana@example.com` |
+| `AMANUENSE_CONFLUENCE_ROOT` | Comparar solo con las páginas bajo este ID de página | `123456` |
 | `AMANUENSE_AI_CLI` | Agente: `claude`, `codex`, `gemini`, `copilot` | `copilot` |
 | `AMANUENSE_AI_URL`, `AMANUENSE_AI_MODEL`, `AMANUENSE_AI_KEY` | IA compatible con OpenAI en lugar de un agente | `http://localhost:11434/v1` |
 | `AMANUENSE_USER` | Nombre que se anota en el registro | `ana.ruiz` |
