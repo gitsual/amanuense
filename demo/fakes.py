@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import json
 import threading
+import time
 import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
@@ -114,6 +115,7 @@ def start(world: dict, port: int = 0) -> ThreadingHTTPServer:
         def do_POST(self):
             if self.path.startswith("/v1/chat/completions"):
                 prompt = self._body()["messages"][-1]["content"]
+                time.sleep(world.get("ai_delay", 0))  # a demo can slow the AI down so its progress is readable
                 answer = scripted_answer(world, prompt)
                 return self._send(200, {"choices": [{"message": {"role": "assistant", "content": answer}}]})
             if not self._allowed():

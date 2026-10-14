@@ -5,6 +5,7 @@
 #   scripts/render-assets.sh            # everything
 #   scripts/render-assets.sh logos      # only the logos
 #   scripts/render-assets.sh demo [es]  # the demo video, English by default (needs tramoya, see demo/)
+#   scripts/render-assets.sh intake [es]  # the intake demo (a pile of documents dropped in), same needs
 #
 # The mark is assets/brand/emblem-flux.png, generated with Flux on a local
 # ComfyUI by scripts/emblem-comfyui.py from the palette's own colours; the
@@ -56,24 +57,42 @@ logos() {
 demo() {  # [en|es], default en; the English take is also the README preview
   local lang=${1:-en}
   echo "-- demo ($lang)"
-  local py=${PLAYWRIGHT_PYTHON:-python3} tramoya=${TRAMOYA:-tramoya} out=demo/out/$lang
   python3 demo/build.py "$lang"
-  "$tramoya" tts --script demo/script.json --lang "$lang" --out-dir "$out/voices"
-  "$py" demo/record.py "$lang"
-  "$tramoya" assemble --video "$out/take.webm" --marks "$out/marks.json" \
-    --voice-dir "$out/voices" --out "$out/demo.mp4" --lang "$lang"
-  mkdir -p assets/video
-  cp "$out/demo.mp4" "assets/video/demo-$lang.mp4"
+  narrate demo "$lang" "demo/out/$lang" demo/script.json demo/record.py
   [[ $lang == en ]] || return 0
-  # Silent preview for the README: the take at double speed, small palette.
-  ffmpeg -y -loglevel error -i "$out/take.webm" -vf \
+  preview_gif "demo/out/$lang/take.webm" assets/video/demo.gif
+}
+
+narrate() {  # <name> <lang> <out> <script> <recorder>: voices, the take, then both joined
+  local name=$1 lang=$2 out=$3 script=$4 recorder=$5
+  local py=${PLAYWRIGHT_PYTHON:-python3} tramoya=${TRAMOYA:-tramoya}
+  "$tramoya" tts --script "$script" --lang "$lang" --out-dir "$out/voices"
+  "$py" "$recorder" "$lang"
+  "$tramoya" assemble --video "$out/take.webm" --marks "$out/marks.json" \
+    --voice-dir "$out/voices" --out "$out/$name.mp4" --lang "$lang"
+  mkdir -p assets/video
+  cp "$out/$name.mp4" "assets/video/$name-$lang.mp4"
+}
+
+preview_gif() {  # <take.webm> <out.gif>: silent README preview, double speed, small palette
+  ffmpeg -y -loglevel error -i "$1" -vf \
     "setpts=0.5*PTS,fps=6,scale=800:-1:flags=lanczos,split[a][b];[a]palettegen=max_colors=96[p];[b][p]paletteuse=dither=bayer" \
-    assets/video/demo.gif
+    "$2"
+}
+
+intake() {  # [en|es], default en; the English take is also the README preview
+  local lang=${1:-en}
+  echo "-- intake ($lang)"
+  python3 demo/intake/pile.py "$lang"
+  narrate intake "$lang" "demo/out/intake/$lang" demo/intake/script.json demo/intake/take.py
+  [[ $lang == en ]] || return 0
+  preview_gif demo/out/intake/en/take.webm assets/video/intake.gif
 }
 
 case $what in
   logos) logos ;;
   demo) demo "${2:-en}" ;;
-  all) logos; demo en; demo es ;;
+  intake) intake "${2:-en}" ;;
+  all) logos; demo en; demo es; intake en; intake es ;;
   *) echo "unknown target: $what" >&2; exit 2 ;;
 esac

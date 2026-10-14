@@ -1,0 +1,38 @@
+{
+ "scene-intro": {
+  "en": "This is amanuense's new intake. Drop a pile of documentation and see what it changes in Confluence. The team and its Confluence are made up, and run on this machine.",
+  "es": "Esta es la nueva entrada de documentación de amanuense. Sueltas un montón de documentos y ves qué cambian en Confluence. El equipo y su Confluence son inventados y corren en esta máquina."
+ },
+ "scene-problem": {
+  "en": "A team hands you a folder with fifty-seven files. Notes, Word documents, copies of copies, test logs, a PDF. Which of them change a page in Confluence?",
+  "es": "Un equipo te pasa una carpeta con cincuenta y siete archivos. Notas, documentos de Word, copias de copias, registros de pruebas, un PDF. ¿Cuáles cambian una página de Confluence?"
+ },
+ "scene-drop": {
+  "en": "Open the review app, choose Add documentation, and drop the whole folder.",
+  "es": "Abres la app de revisión, eliges Añadir documentación y sueltas la carpeta entera."
+ },
+ "scene-plan": {
+  "en": "Before anything is uploaded, it shows what it will use and what it sets aside, and why. Exact copies, test results and logs, an empty file, PDFs it does not read.",
+  "es": "Antes de subir nada, muestra lo que va a usar y lo que deja aparte, y por qué. Copias exactas, resultados de pruebas y registros, un archivo vacío, PDFs que no lee."
+ },
+ "scene-compare": {
+  "en": "Compare with Confluence uploads only the files it keeps. It reads the current space live, and an AI writes one proposal per page.",
+  "es": "Comparar con Confluence sube solo los archivos que conserva. Lee el espacio actual en directo, y una IA escribe una propuesta por página."
+ },
+ "scene-results": {
+  "en": "Five pages to update. Three files already up to date. Twenty files match no page, ranked by how much they look like one. None becomes a new page until you choose it.",
+  "es": "Cinco páginas que actualizar. Tres archivos ya al día. Veinte archivos no encajan con ninguna página, ordenados por lo mucho que parecen una. Ninguno se convierte en página nueva hasta que tú lo eliges."
+ },
+ "scene-proposal": {
+  "en": "Each proposal lands in the usual inbox, side by side with what Confluence says today.",
+  "es": "Cada propuesta llega a la bandeja de siempre, al lado de lo que dice Confluence hoy."
+ },
+ "scene-publish": {
+  "en": "Approve and publish. The page is written, then read back to check the change.",
+  "es": "Apruebas y publicas. La página se escribe y se vuelve a leer para comprobar el cambio."
+ },
+ "scene-close": {
+  "en": "Drop your docs. Get proposals against the Confluence you have today. Amanuense is open source.",
+  "es": "Suelta tus documentos. Recibe propuestas sobre el Confluence que tienes hoy. Amanuense es código abierto."
+ }
+}

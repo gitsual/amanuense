@@ -39,8 +39,6 @@ OUT = HERE / "out" / LANG
 TEAM = OUT / "team"
 WS = TEAM / "docs-workshop"
 WS_OUT = WS / n("out")
-FRAMES = OUT / "frames"
-VOICES = OUT / "voices"
 SHOTS = ROOT / "assets" / "review" if LANG == "en" else None
 WORLD = build.WORLD[LANG]
 FPS = 10
@@ -87,15 +85,16 @@ PALETTE = {"bg": "#253850", "alt": "#283536", "surface": "#43363F", "fg": "#E9E9
 class Take:
     """Screenshots at a fixed rate; scene marks are frame counts over FPS."""
 
-    def __init__(self):
-        shutil.rmtree(FRAMES, ignore_errors=True)
-        FRAMES.mkdir(parents=True)
+    def __init__(self, out: Path = OUT):
+        self.out, self.frames, self.voices = out, out / "frames", out / "voices"
+        shutil.rmtree(self.frames, ignore_errors=True)
+        self.frames.mkdir(parents=True)
         self.n, self.marks = 0, []
 
     def hold(self, page, seconds: float) -> None:
         for _ in range(max(0, int(seconds * FPS))):
             t0 = time.monotonic()
-            page.screenshot(path=str(FRAMES / f"{self.n:05d}.png"))
+            page.screenshot(path=str(self.frames / f"{self.n:05d}.png"))
             self.n += 1
             time.sleep(max(0.0, 1 / FPS - (time.monotonic() - t0)))
 
@@ -104,7 +103,7 @@ class Take:
 
     def end(self, page, name: str) -> None:
         """Holds the last frame until the scene is as long as its narration, if there is one."""
-        voice = VOICES / f"scene-{name}.wav"
+        voice = self.voices / f"scene-{name}.wav"
         if voice.exists():
             start = next(m["t"] for m in self.marks if m["key"] == f"scene:{name}:start")
             spoken = float(subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of",
@@ -118,11 +117,11 @@ class Take:
         self.hold(page, seconds)
 
     def save(self) -> None:
-        subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-framerate", str(FPS), "-i", str(FRAMES / "%05d.png"),
-                        "-c:v", "libvpx-vp9", "-b:v", "0", "-crf", "30", "-pix_fmt", "yuv420p", str(OUT / "take.webm")],
+        subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-framerate", str(FPS), "-i", str(self.frames / "%05d.png"),
+                        "-c:v", "libvpx-vp9", "-b:v", "0", "-crf", "30", "-pix_fmt", "yuv420p", str(self.out / "take.webm")],
                        check=True)
-        (OUT / "marks.json").write_text(json.dumps(self.marks, indent=1), encoding="utf-8")
-        shutil.rmtree(FRAMES)
+        (self.out / "marks.json").write_text(json.dumps(self.marks, indent=1), encoding="utf-8")
+        shutil.rmtree(self.frames)
 
 
 def shot(page, name: str) -> None:
@@ -146,12 +145,14 @@ def _base(body: str) -> str:
             f"</style></head><body>{body}</body></html>")
 
 
-def card(line: str) -> str:
+def card(line: str, sub: str = "") -> str:
     logo = base64.b64encode((ROOT / "assets" / "logo-dark.png").read_bytes()).decode()
+    small = (f"<p class='mono' style='font-size:20px;margin-top:6px;color:{PALETTE['accent']}'>{html.escape(sub)}</p>"
+             if sub else "")
     return _base(f"<div style='height:100vh;display:grid;place-items:center'><div style='text-align:center'>"
                  f"<img src='data:image/png;base64,{logo}' style='width:620px'>"
                  f"<p style='font-size:27px;margin-top:28px;color:{PALETTE['dim']}'>{html.escape(line)}</p>"
-                 f"</div></div>")
+                 f"{small}</div></div>")
 
 
 def problem(step: int) -> str:
