@@ -355,19 +355,34 @@ def _looks_like_data(token: str, before: str) -> bool:
     return token[0].isupper() and not SENTENCE_START.search(before)
 
 
+def _has_term(text: str, term: str) -> bool:
+    """`term` in `text` with no word character either side; both are folded to ASCII, where a
+    word character is a letter, a digit or "_". str.find beats a regex on a long task."""
+    def word(i: int) -> bool:
+        return 0 <= i < len(text) and (text[i].isalnum() or text[i] == "_")
+    at = text.find(term)
+    while at != -1:
+        if not word(at - 1) and not word(at + len(term)):
+            return True
+        at = text.find(term, at + 1)
+    return False
+
+
 def unsupported_terms(result: str, sources: str) -> list[str]:
     """Data-like terms in an AI result that appear nowhere in what the AI was given:
     figures, versions, acronyms, identifiers and proper names mid-sentence. A cheap,
     model-independent check for invented content before a page is approved."""
     folded = _fold(sources)
-    found = set()
+    found, seen = set(), {}
     for line in result.splitlines():
         for m in TOKEN.finditer(line):
             token = m.group(0).rstrip(".-/")
             if not token or not _looks_like_data(token, line[:m.start()]):
                 continue
-            pattern = r"(?<!\w)" + re.escape(_fold(token)) + r"(?!\w)"
-            if not re.search(pattern, folded):
+            term = _fold(token)
+            if term not in seen:
+                seen[term] = _has_term(folded, term)
+            if not seen[term]:
                 found.add(token)
     return sorted(found)
 

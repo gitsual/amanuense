@@ -279,6 +279,27 @@ def test_unsupported_terms_flags_data_missing_from_the_sources():
     assert docs_kit.unsupported_terms("Añadida la sección «Ramas» y “Mapa”.", sources) == []
 
 
+def test_unsupported_terms_needs_the_whole_term_in_the_sources():
+    sources = "Uses API/v2 on port 8080, see PROJ-12a and node_modules; then v1.2.3."
+    check = docs_kit.unsupported_terms
+    assert check("The API answers.", sources) == []  # followed by "/": still a whole term
+    assert check("Port 808 is open.", sources) == ["808"]  # part of 8080
+    assert check("See PROJ-12 first.", sources) == ["PROJ-12"]  # followed by a letter
+    assert check("Install Node first.", sources) == ["Node"]  # followed by "_"
+    assert check("Now on v1.2.", sources) == []  # followed by ".": a whole term
+    assert check("Port 8080 and 8080 again.", sources) == []
+
+
+def test_unsupported_terms_stays_fast_on_a_big_task():
+    import time
+    sources = "word " * 200_000 + "Fare Engine 8080"
+    result = "\n".join(f"Line {i} names Zone{i % 50} and port 8080." for i in range(2000))
+    started = time.perf_counter()
+    found = docs_kit.unsupported_terms(result, sources)
+    assert "Zone7" in found and "8080" not in found
+    assert time.perf_counter() - started < 2
+
+
 def test_review_flags_invented_data_in_changes_and_index(tmp_path):
     ws = _workspace(tmp_path)
     docs_kit.run_workspace(ws)
