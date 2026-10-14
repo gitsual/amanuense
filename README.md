@@ -14,7 +14,7 @@ They do not decide what the text says. They keep it straight, and they note who 
 <p>
   <img alt="Python 3.11+" src="https://img.shields.io/badge/python-3.11%2B-253850?style=for-the-badge&logo=python&logoColor=E9E9E7">
   <img alt="stdlib only" src="https://img.shields.io/badge/core-zero%20deps-253850?style=for-the-badge&labelColor=253850&color=AAA875">
-  <img alt="58 tests" src="https://img.shields.io/badge/58%20tests-linux%20%2B%20windows-253850?style=for-the-badge&labelColor=253850&color=283536">
+  <img alt="69 tests" src="https://img.shields.io/badge/69%20tests-linux%20%2B%20windows-253850?style=for-the-badge&labelColor=253850&color=283536">
   <img alt="MIND to Obsidian" src="https://img.shields.io/badge/MIND-%E2%86%92%20obsidian-253850?style=for-the-badge&labelColor=253850&color=43363F">
   <img alt="four agent CLIs" src="https://img.shields.io/badge/claude%20·%20codex%20·%20gemini%20·%20copilot-253850?style=for-the-badge&labelColor=253850&color=B9B9B9">
   <img alt="MIT" src="https://img.shields.io/badge/license-MIT-253850?style=for-the-badge&labelColor=253850&color=AAA875">
@@ -57,19 +57,21 @@ It needs Python 3.11 and nothing else. There is no setup step and no dependency.
 ```sh
 git clone git@github.com:gitsual/amanuense.git
 cd amanuense
-./amanuense.sh          # first run creates ~/taller-docs and tells you what to drop in it
+./amanuense.sh          # first run creates ~/docs-workshop and tells you what to drop in it
 ```
 
 > [!NOTE]
-> The workshop speaks Spanish: folders, reports and the AI prompts. The step-by-step
-> user guide is [docs/guia.md](docs/guia.md).
+> The workshop speaks English by default: folders, reports and the AI prompts. Run it once with
+> `--lang es` (or set `AMANUENSE_LANG=es`) for a Spanish workshop; a workshop that already has
+> Spanish folders stays Spanish. The step-by-step guide is [docs/guide.md](docs/guide.md)
+> ([en español](docs/guia.md)).
 
 <details>
 <summary><strong>Windows 11</strong></summary>
 
 Install [Python](https://www.python.org/downloads/windows/) and tick *Add python.exe to PATH*.
-Then double-click `amanuense.bat`. The first run creates `Documents\taller-docs` and opens it.
-Every later double-click analyses the folder and opens `salida\index.html`.
+Then double-click `amanuense.bat`. The first run creates `Documents\docs-workshop` and opens it.
+Every later double-click analyses the folder and opens `output\index.html`.
 
 </details>
 
@@ -78,8 +80,8 @@ Every later double-click analyses the folder and opens `salida\index.html`.
 
 ```sh
 pip install -e .        # gives you the `amanuense` command
-amanuense init ~/taller-docs
-amanuense run ~/taller-docs --ai-cli claude
+amanuense init ~/docs-workshop
+amanuense run ~/docs-workshop --ai-cli claude
 ```
 
 </details>
@@ -90,28 +92,28 @@ A walkthrough for Windows that takes about ten minutes. The video at the top sho
 
 1. Clone the repo with Fork or Git Bash: `git clone https://github.com/gitsual/amanuense.git`
 2. Install [Python 3.11+](https://www.python.org/downloads/windows/) and tick *Add python.exe to PATH*.
-3. Double-click `amanuense.bat`. It creates `Documents\taller-docs` and opens it.
+3. Double-click `amanuense.bat`. It creates `Documents\docs-workshop` and opens it.
 4. Fill its folders:
-   - `1-export-confluence`: in MIND, open the page's «···» menu and choose Export → Export to Word →
+   - `1-confluence-export`: in MIND, open the page's «···» menu and choose Export → Export to Word →
      *This page and its children*.
-   - `2-mi-documentacion`: your drafts. A draft that replaces a page keeps the page's title and has a
-     paragraph that starts with `Instrucciones de actualización:`.
-   - `3-biblia`: what overrides everything else, such as the reference architecture, the Nexus
+   - `2-my-docs`: your drafts. A draft that replaces a page keeps the page's title and has a
+     paragraph that starts with `Update instructions:`.
+   - `3-bible`: what overrides everything else, such as the reference architecture, the Nexus
      requirements and the repo standards.
-5. Double-click again. `salida\index.html` opens with the report: pages to update, new pages,
+5. Double-click again. `output\index.html` opens with the report: pages to update, new pages,
    duplicates and leftovers.
-6. Every page gets a `TAREA.md`. Give it to the AI your company allows, and save the answer as
-   `RESULTADO.md` in the same folder. If Copilot CLI is installed, run `amanuense.bat --ai-cli copilot`
+6. Every page gets a `TASK.md`. Give it to the AI your company allows, and save the answer as
+   `RESULT.md` in the same folder. If Copilot CLI is installed, run `amanuense.bat --ai-cli copilot`
    and it does this step for you.
-7. Double-click again. Review `CAMBIOS.html`; its top lists data the AI may have made up. Then open
-   `PARA-CONFLUENCE.html`, select all, copy and paste it into MIND.
+7. Double-click again. Review `CHANGES.html`; its top lists data the AI may have made up. Then open
+   `FOR-CONFLUENCE.html`, select all, copy and paste it into MIND.
 
 From there:
 
-- **Who changed what:** replace the export with a newer one and run again. `salida\registro.html`
+- **Who changed what:** replace the export with a newer one and run again. `output\log.html`
   logs the changes. To see authors, put a personal MIND token in a local `.env`; it never leaves your machine.
 - **Code changes:** list your Bitbucket clones in `repos.txt`. The log flags pages that a commit outdates.
-- **Team requests:** add lines like `- Name: what to change` to `peticiones.md`. The AI picks the
+- **Team requests:** add lines like `- Name: what to change` to `requests.md`. The AI picks the
   page and prepares its task.
 - **Obsidian:** `amanuense.bat obsidian "path\to\export.docx" "path\to\vault\MIND"`.
 
@@ -120,31 +122,35 @@ Nothing is uploaded anywhere. Nothing reaches MIND until a person has reviewed i
 ## 📝 The workshop
 
 ```
-taller-docs/
-  1-export-confluence/   the Word export of the section (page + children)
-  2-mi-documentacion/    your drafts: new pages, and old ones with «Instrucciones de actualización»
-  3-biblia/              what overrides everything: reference architecture, standards
-  peticiones.md          change requests, one line each
+docs-workshop/
+  1-confluence-export/   the Word export of the section (page + children)
+  2-my-docs/             your drafts: new pages, and old ones with "Update instructions:"
+  3-bible/               what overrides everything: reference architecture, standards
+  requests.md            change requests, one line each
   repos.txt              local clones of the code repos
-  salida/                report, one task folder per page, the change log
+  output/                report, one task folder per page, the change log
 ```
 
 Each run:
 
 1. Compares the export with your drafts and writes a report. It lists what to update, what is new,
    what is duplicated and which Confluence pages have no local counterpart.
-2. Writes a `TAREA.md` per page. The file carries the rules, the instructions, the current page,
+2. Writes a `TASK.md` per page. The file carries the rules, the instructions, the current page,
    the template skeleton and the bible. You can give it to any AI.
-3. Turns every `RESULTADO.md` it finds into two pages. `PARA-CONFLUENCE.html` is ready to copy and
-   paste. `CAMBIOS.html` is the diff you approve.
+3. Turns every `RESULT.md` it finds into two pages. `FOR-CONFLUENCE.html` is ready to copy and
+   paste. `CHANGES.html` is the diff you approve.
 4. Flags **data without a source**: figures, versions, acronyms or names in the result that appear
    nowhere in what the AI was given.
 
-It never writes into the input folders and never overwrites a `RESULTADO.md`.
+It never writes into the input folders and never overwrites a `RESULT.md`.
+
+The Spanish workshop (`--lang es`) uses `1-export-confluence/`, `2-mi-documentacion/`, `3-biblia/`,
+`peticiones.md`, `salida/`, `TAREA.md` and `RESULTADO.md`, and the marker
+`Instrucciones de actualización:`. Both markers work in either language.
 
 ## 👥 Who changed what
 
-To update, download the newest Word export and drop it in place of the old one. `salida/registro.html` then
+To update, download the newest Word export and drop it in place of the old one. `output/log.html` then
 records four kinds of change:
 
 | Source | What | Who |
@@ -169,14 +175,14 @@ changed, but not who changed it.
 
 ## ✋ Ask for a change
 
-Add a line to `peticiones.md`:
+Add a line to `requests.md`:
 
 ```
 - Ana: the deployment port is now 8443
 ```
 
 On the next run, the AI reads the request and the list of pages. It answers which page to change,
-what to change and why, and the workshop prepares that page's task under `salida/peticiones/`.
+what to change and why, and the workshop prepares that page's task under `output/requests/`.
 If the AI names no valid page, the request is retried on the next run.
 
 ## 🪨 MIND → Obsidian
@@ -184,7 +190,7 @@ If the AI names no valid page, the request is retried on the next run.
 The same Word export becomes an Obsidian vault, so the whole space can be read and linked offline:
 
 ```sh
-./amanuense.sh obsidian ~/taller-docs/1-export-confluence/MIND.docx ~/vault/MIND
+./amanuense.sh obsidian ~/docs-workshop/1-confluence-export/MIND.docx ~/vault/MIND
 amanuense.bat obsidian EXPORT.docx VAULT\MIND      # Windows
 ```
 
@@ -204,12 +210,12 @@ index links its children. It refuses to overwrite existing notes unless you pass
 | `--ai-url URL --ai-model M` | any OpenAI-compatible API (Ollama, LM Studio, vLLM) |
 
 The prompt always goes to the engine on stdin, and each call runs in an empty temporary folder.
-With no AI configured, you paste each `TAREA.md` into a chat yourself.
+With no AI configured, you paste each `TASK.md` into a chat yourself.
 
 ## 🗂 The team repo
 
-`src/amanuense/skeleton/` is a starting point for the team's documentation repo. It holds the
-bible, the shared docs, one agent and three skills. Write the skills and agents once, then run
+`src/amanuense/skeleton/en/` (or `es/`) is a starting point for the team's documentation repo. It
+holds the bible, the shared docs, one agent and three skills. Write the skills and agents once, then run
 `amanuense agents PATH` to generate the native files for each tool: `.claude/`, `.agents/`,
 `.codex/`, `.gemini/` and `.github/agents/`.
 
@@ -239,8 +245,8 @@ What the team asked for, and where each piece stands.
 | Less, coherent documentation: duplicates and orphan pages flagged | done: report on every run |
 | Confluence vs local drafts, with one source of truth | done: report, diff and paste-ready page |
 | Know who changed what, in Confluence and in code | done: change log; authors need the REST API |
-| Change requests in plain words, routed to the right page | done: `peticiones.md` |
-| A bible that overrides everything (reference architecture, requirements, repo standards) | done: `3-biblia/`, fed to every task |
+| Change requests in plain words, routed to the right page | done: `requests.md` |
+| A bible that overrides everything (reference architecture, requirements, repo standards) | done: `3-bible/`, fed to every task |
 | MIND readable and linkable offline | done: `amanuense obsidian` |
 | A shared team repo with docs, agents and skills | done: skeleton plus `amanuense agents` |
 | Skills that produce designs ready to paste into Confluence | partial: the workshop skills; design skills planned |

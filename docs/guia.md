@@ -26,8 +26,10 @@ que los valores del ejemplo de la plantilla no acaben en la página nueva.
 
 Sólo hace falta Python 3 (python.org, marcando «Add to PATH»).
 
-1. Doble clic en **`amanuense.bat`** (en la raíz del repo). La primera vez crea
-   `Documentos\taller-docs` y abre la carpeta.
+1. La primera vez, ejecuta **`amanuense.bat --lang es`** (en la raíz del repo): crea
+   `Documentos\docs-workshop` con las carpetas en español y la abre. Sin `--lang es`, el
+   taller sale en inglés. Un taller que ya tiene las carpetas en español sigue en español,
+   y si existe `Documentos\taller-docs` se usa esa carpeta. Desde ahí basta el doble clic.
 2. Rellena las carpetas:
    - `1-export-confluence\`: el Word exportado (menú «···» de la página →
      Exportar → Exportar a Word → «Esta página y sus hijos»).
@@ -121,8 +123,8 @@ El mismo «Export to Word» de MIND (el Confluence de la suite Atlassian) se pue
 convertir en un vault de Obsidian, para leer y enlazar la documentación sin red:
 
 ```
-amanuense.bat obsidian "Documentos\taller-docs\1-export-confluence\MIND.docx" "Documentos\MiVault\MIND"
-./amanuense.sh obsidian ~/taller-docs/1-export-confluence/MIND.docx ~/MiVault/MIND
+amanuense.bat obsidian "Documentos\docs-workshop\1-export-confluence\MIND.docx" "Documentos\MiVault\MIND"
+./amanuense.sh obsidian ~/docs-workshop/1-export-confluence/MIND.docx ~/MiVault/MIND
 ```
 
 - Cada página raíz (H1) es una carpeta con `_index.md`; cada hija (H2), una nota;
@@ -143,9 +145,9 @@ también páginas renombradas y duplicados por contenido, y `--content
 
 ## El repo de documentación del Brick
 
-`src/amanuense/skeleton/` es un esqueleto para el repo común del equipo: documentación común,
+`src/amanuense/skeleton/es/` es un esqueleto para el repo común del equipo: documentación común,
 documentación del brick, agentes y skills. Para copiarlo en un repo nuevo: `amanuense agents RUTA` escribe los ficheros
 nativos de cada herramienta; el resto se copia tal cual. Las skills son las mismas reglas del
 taller escritas para que cualquier agente (Claude Code, Copilot, un bot de Teams)
-las siga. Empieza por [`skeleton/README.md`](../src/amanuense/skeleton/README.md) y por la guía
-[agentes o skills](../src/amanuense/skeleton/docs/comun/agentes-o-skills.md).
+las siga. Empieza por [`skeleton/es/README.md`](../src/amanuense/skeleton/es/README.md) y por la guía
+[agentes o skills](../src/amanuense/skeleton/es/docs/comun/agentes-o-skills.md).

@@ -1,20 +1,31 @@
 #!/usr/bin/env bash
-# amanuense.sh — documentation workshop (see docs/guia.md).
-#   First run creates the workshop folder; next runs analyse it and open salida/index.html.
+# amanuense.sh — documentation workshop (see docs/guide.md).
+#   First run creates the workshop folder; next runs analyse it and open output/index.html.
 #   ./amanuense.sh [extra args, e.g. --ai-cli claude]
 #   ./amanuense.sh obsidian EXPORT.docx VAULT/MIND   (export to an Obsidian vault)
-#   Workshop folder: AMANUENSE_WORKSPACE (or .env), default ~/taller-docs.
+#   ./amanuense.sh --lang es        (Spanish workshop; default English, an existing workshop keeps its own)
+#   Workshop folder: AMANUENSE_WORKSPACE (or .env), default ~/docs-workshop (~/taller-docs if it exists).
 set -euo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 [[ -f "$HERE/.env" ]] && set -a && source "$HERE/.env" && set +a
-WS="${AMANUENSE_WORKSPACE:-$HOME/taller-docs}"
+DEFAULT_WS="$HOME/docs-workshop"
+[[ -d "$HOME/taller-docs" ]] && DEFAULT_WS="$HOME/taller-docs"
+WS="${AMANUENSE_WORKSPACE:-$DEFAULT_WS}"
 PY="$HERE/.venv/bin/python"
 [[ -x "$PY" ]] || PY="$(command -v python3 || command -v python)" || { echo "✗ missing: Python 3" >&2; exit 1; }
 export PYTHONPATH="$HERE/src${PYTHONPATH:+:$PYTHONPATH}"
 [[ "${1:-}" == obsidian ]] && exec "$PY" -m amanuense "$@"
-if [[ ! -d "$WS/1-export-confluence" ]]; then
-  "$PY" -m amanuense init "$WS"
-  echo "Workshop created: $WS — fill its folders (see LEEME.md) and run this again."
+# --lang works before or after the subcommand; init only needs that one flag.
+LANG_ARGS=()
+for ((i = 1; i <= $#; i++)); do
+  case "${!i}" in
+    --lang) j=$((i + 1)); LANG_ARGS=(--lang "${!j:-}") ;;
+    --lang=*) LANG_ARGS=("${!i}") ;;
+  esac
+done
+if [[ ! -d "$WS/1-confluence-export" && ! -d "$WS/1-export-confluence" ]]; then
+  GUIDE="$("$PY" -m amanuense "${LANG_ARGS[@]}" init "$WS")"
+  echo "Workshop created: $WS — fill its folders (see $GUIDE) and run this again."
   exit 0
 fi
 exec "$PY" -m amanuense run "$WS" "$@"

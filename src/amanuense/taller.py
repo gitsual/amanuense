@@ -44,8 +44,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
 
+from . import i18n
 from .confluence import (
-    SECTIONS,
     Page,
     _read_local,
     _slug,
@@ -58,60 +58,25 @@ from .confluence import (
     rag_embed,
     rag_judge,
     render_report,
+    sections,
 )
 
-EXPORT_DIR = "1-export-confluence"
-LOCAL_DIR = "2-mi-documentacion"
-BIBLE_DIR = "3-biblia"
-OUT_DIR = "salida"
-GUIDE = "LEEME.md"
-RESULT = "RESULTADO.md"
 BIBLE_DOC_CHARS = 8000
 CHAT_LIMIT_CHARS = 120_000  # ~30k tokens: beyond this a plain chat window truncates
 TEMPLATE_TITLE = re.compile(r"\b(plantilla|template)\b", re.IGNORECASE)
-WANTS_TEMPLATE = re.compile(r"^\s*plantilla\s*:", re.IGNORECASE | re.MULTILINE)
+WANTS_TEMPLATE = re.compile(r"^\s*(plantilla|template)\s*:", re.IGNORECASE | re.MULTILINE)
 
 Ai = Callable[[str], str]
 
-GUIDE_TEXT = """# Taller de documentación
+# Workshop names, kept as module attributes; they follow the current language.
+_NAMES = {"EXPORT_DIR": "export", "LOCAL_DIR": "local", "BIBLE_DIR": "bible", "OUT_DIR": "out",
+          "GUIDE": "guide", "RESULT": "result"}
 
-1. Copia en `1-export-confluence/` el Word exportado de Confluence
-   (menú «···» de la página → Exportar → Exportar a Word → «Esta página y sus hijos»).
-2. Copia en `2-mi-documentacion/` tu carpeta de trabajo. Cada documento que
-   sustituye a una página lleva su mismo título y un párrafo que empieza por
-   «Instrucciones de actualización:». Los documentos nuevos no lo llevan; si uno
-   nuevo debe seguir la plantilla (por ejemplo, una capacidad), añade una línea
-   «Plantilla: sí».
-3. Copia en `3-biblia/` los documentos que mandan sobre todo lo demás
-   (arquitectura de referencia, requisitos de publicación, estándares de repos).
-   Si dejas aquí un documento cuyo nombre o título contenga «plantilla», será la
-   plantilla de las páginas nuevas; si no, se usa la del export.
-4. Ejecuta el taller. Se abre `salida/index.html` con el informe y una tarea por página.
-5. En cada tarea, da `TAREA.md` a tu IA y guarda su respuesta como `RESULTADO.md`
-   en la misma carpeta. Vuelve a ejecutar el taller.
-6. Revisa `CAMBIOS.html`, abre `PARA-CONFLUENCE.html`, selecciona todo, copia y
-   pega en la página de Confluence.
 
-Nada sale de este equipo salvo que configures una IA con --ai-url.
-"""
-
-RULES = """## Reglas
-
-1. No inventes datos: nombres, versiones, URL, fechas ni responsables.
-   No añadas contenido que no esté en esta tarea: sólo redacta y ordena lo que ya hay.
-   Si falta algo, deja una línea `> PENDIENTE: qué falta`.
-{bible_rule}3. Coherente y reducida: quita repeticiones; si un bloque ya vive en otra página,
-   sustitúyelo por «Ver la página «Título»».
-4. Formato: Markdown, empezando por `# {title}`; tablas en Markdown; sin HTML.
-5. Termina con `## Registro de cambios`, una viñeta por cambio.
-6. Responde SOLO con la página.
-"""
-BIBLE_RULE = """2. La Biblia manda. Si algo la contradice, no elijas tú: deja una línea
-   `> CONFLICTO: qué choca con qué` y conserva el texto actual.
-"""
-NO_BIBLE_RULE = """2. Si dos partes de esta tarea se contradicen, no elijas tú: deja una línea
-   `> CONFLICTO: qué choca con qué` y conserva el texto actual.
-"""
+def __getattr__(attr: str) -> str:
+    if attr in _NAMES:
+        return i18n.name(_NAMES[attr])
+    raise AttributeError(f"module {__name__!r} has no attribute {attr!r}")
 
 
 @dataclass
@@ -123,11 +88,13 @@ class Task:
     page: Page | None
 
 
-def init_workspace(root: Path) -> Path:
-    for name in (EXPORT_DIR, LOCAL_DIR, BIBLE_DIR):
-        (root / name).mkdir(parents=True, exist_ok=True)
-    from . import registro as log
-    for name, text in ((GUIDE, GUIDE_TEXT), (log.REQUESTS_FILE, log.REQUESTS_TEXT), (log.REPOS_FILE, log.REPOS_TEXT)):
+def init_workspace(root: Path, lang: str | None = None) -> Path:
+    """Creates the input folders and their guides; an existing workshop keeps its language."""
+    i18n.choose(root, lang)
+    for key in ("export", "local", "bible"):
+        (root / i18n.name(key)).mkdir(parents=True, exist_ok=True)
+    for key, text in (("guide", "guide_text"), ("requests", "requests_text"), ("repos", "repos_text")):
+        name, text = i18n.name(key), i18n.t(text)
         if not (root / name).exists():
             (root / name).write_text(text, encoding="utf-8")
     return root
@@ -138,14 +105,14 @@ def _inputs(folder: Path, suffix: str) -> list[Path]:
 
 
 def _bible(root: Path) -> str:
-    folder = root / BIBLE_DIR
+    folder = root / i18n.name("bible")
     if not folder.is_dir():
         return ""
     parts = []
     for d in load_local(folder):
         text = _read_local(folder / d.rel).strip()
         if len(text) > BIBLE_DOC_CHARS:
-            text = text[:BIBLE_DOC_CHARS] + "\n\n[… recortado]"
+            text = text[:BIBLE_DOC_CHARS] + "\n\n" + i18n.t("cut")
         parts.append(f"### {d.title} (`{d.rel}`)\n\n{text}")
     return "\n\n".join(parts)
 
@@ -153,7 +120,7 @@ def _bible(root: Path) -> str:
 def _template(root: Path, exports: list[Path], level: int) -> Page | None:
     """Template for new pages: a «plantilla» document in the bible wins; otherwise the
     export page named like one, taken whole (with its child pages) at its own level."""
-    folder = root / BIBLE_DIR
+    folder = root / i18n.name("bible")
     if folder.is_dir():
         for d in load_local(folder):
             if TEMPLATE_TITLE.search(d.title) or TEMPLATE_TITLE.search(Path(d.rel).stem.replace("-", " ")):
@@ -224,32 +191,27 @@ def _tasks(rows, pages: list[Page]) -> list[Task]:
         if r.kind == "new":  # instructions without a page stay in the report: map them by hand
             tasks.append(Task("", "new", r.title, r.local, None))
     for n, t in enumerate(tasks, 1):
-        verb = "actualizar" if t.kind == "update" else "nueva"
+        verb = i18n.name("verb_update" if t.kind == "update" else "verb_new")
         t.slug = f"{n:02d}-{verb}-{_slug(t.title)}"
     return tasks
 
 
 def _prompt(task: Task, local_text: str, template: Page | None, bible: str) -> str:
+    t = i18n.t
+    rules = t("rules", title=task.title, bible_rule=t("bible_rule" if bible else "no_bible_rule"))
     out = []
     if task.kind == "update":
-        out += [f"# Tarea: actualizar la página «{task.title}» de Confluence", "",
-                "Actúa como redactor técnico. Reescribe la página actual aplicando SOLO lo que "
-                "piden las instrucciones de actualización; lo que no mencionan se conserva.", "",
-                RULES.format(title=task.title, bible_rule=BIBLE_RULE if bible else NO_BIBLE_RULE),
-                f"## Instrucciones de actualización (`{task.local_rel}`)", "", _demote(local_text), "",
-                "## Página actual en Confluence", "", _demote(task.page.markdown if task.page else ""), ""]
+        out += [t("task_update_title", title=task.title), "", t("task_update_intro"), "", rules,
+                t("task_update_instructions", rel=task.local_rel), "", _demote(local_text), "",
+                t("task_current_page"), "", _demote(task.page.markdown if task.page else ""), ""]
     else:
-        out += [f"# Tarea: página nueva «{task.title}»", "",
-                "Actúa como redactor técnico. Convierte el borrador en una página de Confluence.", "",
-                RULES.format(title=task.title, bible_rule=BIBLE_RULE if bible else NO_BIBLE_RULE)]
+        out += [t("task_new_title", title=task.title), "", t("task_new_intro"), "", rules]
         if template and WANTS_TEMPLATE.search(local_text):
-            out += [f"## Plantilla («{template.title}»)", "",
-                    "Usa sus secciones y etiquetas en el mismo orden; «…» marca dónde va contenido. "
-                    "Rellena sólo con lo que diga el borrador o la Biblia y deja `> PENDIENTE` en el resto.",
+            out += [t("task_template", title=template.title), "", t("task_template_hint"),
                     "", _demote(template_skeleton(template.markdown), 1), ""]
-        out += [f"## Borrador local (`{task.local_rel}`)", "", _demote(local_text), ""]
+        out += [t("task_draft", rel=task.local_rel), "", _demote(local_text), ""]
     if bible:
-        out += ["## Biblia (referencias que mandan)", "", _demote(bible, 1), ""]
+        out += [t("task_bible"), "", _demote(bible, 1), ""]
     return "\n".join(out).rstrip() + "\n"
 
 
@@ -375,68 +337,68 @@ PAGE_CSS = ("body{font-family:system-ui,sans-serif;max-width:60rem;margin:2rem a
 
 
 def _html_page(title: str, body: str) -> str:
-    return (f'<!doctype html><html lang="es"><head><meta charset="utf-8"><title>{html.escape(title)}</title>'
+    return (f'<!doctype html><html lang="{i18n.current()}"><head><meta charset="utf-8"><title>{html.escape(title)}</title>'
             f"<style>{PAGE_CSS}</style></head><body>\n{body}</body></html>\n")
 
 
 def _publish(task_dir: Path, task: Task) -> list[str] | None:
     """Writes the paste-ready page and the change view; returns the unsupported terms."""
-    result = task_dir / RESULT
+    n = i18n.name
+    result = task_dir / n("result")
     if not result.is_file():
         return None
     proposal = result.read_text(encoding="utf-8")
-    unsupported = unsupported_terms(proposal, (task_dir / "TAREA.md").read_text(encoding="utf-8"))
-    (task_dir / "PARA-CONFLUENCE.html").write_text(_html_page(task.title, markdown_to_html(proposal)),
-                                                     encoding="utf-8")
-    before_name = "ACTUAL.md" if task.page else "LOCAL.md"
-    before = (task_dir / before_name).read_text(encoding="utf-8")
+    unsupported = unsupported_terms(proposal, (task_dir / n("task")).read_text(encoding="utf-8"))
+    (task_dir / n("paste")).write_text(_html_page(task.title, markdown_to_html(proposal)), encoding="utf-8")
+    before = (task_dir / n("current" if task.page else "local_copy")).read_text(encoding="utf-8")
     diff = difflib.HtmlDiff(wrapcolumn=90).make_file(
         before.splitlines(), proposal.splitlines(),
-        "Confluence hoy" if task.page else "Borrador local", "Propuesta", context=True, numlines=3)
+        i18n.t("confluence_today" if task.page else "local_draft"), i18n.t("proposal"), context=True, numlines=3)
     if unsupported:
-        note = ("<p><b>Datos sin fuente</b> (no aparecen en nada de lo que se dio a la IA; "
-                "compruébalos antes de aprobar): " + html.escape(", ".join(unsupported)) + "</p>")
+        note = i18n.t("unsourced_note", terms=html.escape(", ".join(unsupported)))
         diff = diff.replace("<body>", "<body>\n" + note, 1)
-    (task_dir / "CAMBIOS.html").write_text(diff, encoding="utf-8")
+    (task_dir / n("changes")).write_text(diff, encoding="utf-8")
     return unsupported
 
 
 def _index(out: Path, rows, tasks: list[Task], ready: dict[str, list[str]], level: int,
            sizes: dict[str, int], errors: dict[str, str] | None = None) -> str:
+    n, t = i18n.name, i18n.t
     counts = "".join(f"<li>{html.escape(label)}: <b>{sum(r.kind == k for r in rows)}</b></li>"
-                     for k, label, _ in SECTIONS)
+                     for k, label, _ in sections())
     trs = []
-    for t in tasks:
-        base = f"tareas/{t.slug}"
-        links = [f'<a href="{base}/TAREA.md">TAREA.md</a>']
-        if t.slug in ready:
-            links += [f'<a href="{base}/CAMBIOS.html">CAMBIOS.html</a>',
-                      f'<a href="{base}/PARA-CONFLUENCE.html">PARA-CONFLUENCE.html</a>']
-        state = "listo" if t.slug in ready else "pendiente: falta RESULTADO.md"
-        if ready.get(t.slug):
-            n = len(ready[t.slug])
-            state += f" · revisar {n} dato{'s' if n > 1 else ''} sin fuente"
-        if (errors or {}).get(t.slug):
-            state += f" · falló la IA: {html.escape(errors[t.slug])}"
-        if sizes.get(t.slug, 0) > CHAT_LIMIT_CHARS:
-            state += (f" · grande ({sizes[t.slug] // 1000}k caracteres): usa una IA de contexto largo "
-                      "o divide el documento local por subpáginas")
-        trs.append(f"<tr><td>{html.escape(t.slug)}</td><td>{html.escape(t.title)}</td>"
+    for task in tasks:
+        base = f"{n('tasks')}/{task.slug}"
+        links = [f'<a href="{base}/{n("task")}">{n("task")}</a>']
+        if task.slug in ready:
+            links += [f'<a href="{base}/{n("changes")}">{n("changes")}</a>',
+                      f'<a href="{base}/{n("paste")}">{n("paste")}</a>']
+        state = t("state_ready") if task.slug in ready else t("state_pending", result=n("result"))
+        if ready.get(task.slug):
+            count = len(ready[task.slug])
+            state += t("state_unsourced_1") if count == 1 else t("state_unsourced_n", n=count)
+        if (errors or {}).get(task.slug):
+            state += t("state_ai_failed", error=html.escape(errors[task.slug]))
+        if sizes.get(task.slug, 0) > CHAT_LIMIT_CHARS:
+            state += t("state_big", k=sizes[task.slug] // 1000)
+        trs.append(f"<tr><td>{html.escape(task.slug)}</td><td>{html.escape(task.title)}</td>"
                    f"<td>{state}</td><td>{' · '.join(links)}</td></tr>")
-    body = (f"<h1>Taller de documentación</h1><p>Páginas del export al nivel de encabezado {level}. "
-            f'Informe completo: <a href="informe.md">informe.md</a>. '
-            f'Qué cambió y quién: <a href="registro.html">registro.html</a>.</p><ul>{counts}</ul>'
-            f"<h2>Tareas ({len(ready)}/{len(tasks)} listas)</h2><table><thead><tr><th>Carpeta</th>"
-            f"<th>Página</th><th>Estado</th><th>Ficheros</th></tr></thead><tbody>{''.join(trs)}</tbody></table>")
-    return _html_page("Taller de documentación", body)
+    report, log = n("report"), n("log_html")
+    intro = t("index_intro", level=level, report=f'<a href="{report}">{report}</a>', log=f'<a href="{log}">{log}</a>')
+    body = (f"<h1>{t('workshop_title')}</h1><p>{intro}</p><ul>{counts}</ul>"
+            f"<h2>{t('index_tasks', ready=len(ready), total=len(tasks))}</h2><table><thead><tr>"
+            f"<th>{t('col_folder')}</th><th>{t('col_page')}</th><th>{t('col_state')}</th>"
+            f"<th>{t('col_files')}</th></tr></thead><tbody>{''.join(trs)}</tbody></table>")
+    return _html_page(t("workshop_title"), body)
 
 
 def run_workspace(root: Path, embed=None, judge=None, ai: Ai | None = None, history=None,
-                  router: Ai | None = None) -> dict:
+                  router: Ai | None = None, lang: str | None = None) -> dict:
     """`history` gives Confluence authors to the change log; `router` (default: `ai`) routes requests."""
-    init_workspace(root)
-    exports = _inputs(root / EXPORT_DIR, ".docx")
-    local_root = root / LOCAL_DIR
+    init_workspace(root, lang)
+    n = i18n.name
+    exports = _inputs(root / n("export"), ".docx")
+    local_root = root / n("local")
     local = load_local(local_root)
     level = best_page_level(exports, local) if exports else 1
     pages = [p for e in exports for p in docx_to_pages(e, level)]
@@ -444,9 +406,9 @@ def run_workspace(root: Path, embed=None, judge=None, ai: Ai | None = None, hist
     if embed and judge:
         rows += find_contradictions(rows, pages, local, embed, judge)
 
-    out = root / OUT_DIR
+    out = root / n("out")
     out.mkdir(parents=True, exist_ok=True)
-    (out / "informe.md").write_text(render_report(rows), encoding="utf-8")
+    (out / n("report")).write_text(render_report(rows), encoding="utf-8")
 
     template = _template(root, exports, level)
     bible = _bible(root)
@@ -455,18 +417,18 @@ def run_workspace(root: Path, embed=None, judge=None, ai: Ai | None = None, hist
     sizes: dict[str, int] = {}
     errors: dict[str, str] = {}
     for t in tasks:
-        d = out / "tareas" / t.slug
+        d = out / n("tasks") / t.slug
         d.mkdir(parents=True, exist_ok=True)
         local_text = _read_local(local_root / t.local_rel)
-        (d / "LOCAL.md").write_text(local_text, encoding="utf-8")
+        (d / n("local_copy")).write_text(local_text, encoding="utf-8")
         if t.page:
-            (d / "ACTUAL.md").write_text(t.page.markdown, encoding="utf-8")
+            (d / n("current")).write_text(t.page.markdown, encoding="utf-8")
         prompt = _prompt(t, local_text, template, bible)
-        (d / "TAREA.md").write_text(prompt, encoding="utf-8")
+        (d / n("task")).write_text(prompt, encoding="utf-8")
         sizes[t.slug] = len(prompt)
-        if ai and not (d / RESULT).exists():
+        if ai and not (d / n("result")).exists():
             try:
-                (d / RESULT).write_text(ai(prompt).strip() + "\n", encoding="utf-8")
+                (d / n("result")).write_text(ai(prompt).strip() + "\n", encoding="utf-8")
             except Exception as exc:  # one failing task must not stop the rest
                 errors[t.slug] = str(exc)
         unsupported = _publish(d, t)
@@ -474,14 +436,14 @@ def run_workspace(root: Path, embed=None, judge=None, ai: Ai | None = None, hist
             ready[t.slug] = unsupported
 
     from . import registro as log
-    done = {f"tareas/{t.slug}": t for t in tasks if t.slug in ready}
+    done = {f"{n('tasks')}/{t.slug}": t for t in tasks if t.slug in ready}
     changes = log.update_log(root, exports, pages, done, history, router or ai, template, bible)
 
     index = out / "index.html"
     index.write_text(_index(out, rows, tasks, ready, level, sizes, errors), encoding="utf-8")
     return {"page_level": level, "tasks": [t.slug for t in tasks], "ready": sorted(ready), "errors": errors,
             "index": index, "template": template.title if template else None,
-            "log": out / log.LOG_HTML, "log_errors": changes["errors"]}
+            "log": out / n("log_html"), "log_errors": changes["errors"]}
 
 
 def openai_client(url: str, model: str, key: str = "", opener=urllib.request.urlopen,
@@ -491,7 +453,7 @@ def openai_client(url: str, model: str, key: str = "", opener=urllib.request.url
 
     def ask(prompt: str) -> str:
         body = {"model": model, "temperature": 0.2, "messages": [
-            {"role": "system", "content": "Eres un redactor técnico. Responde solo con la página en Markdown."},
+            {"role": "system", "content": i18n.t("system_prompt")},
             {"role": "user", "content": prompt}]}
         headers = {"Content-Type": "application/json"}
         if key:
@@ -510,7 +472,7 @@ ENGINES: dict[str, list[str]] = {
     "codex": ["exec", "--skip-git-repo-check", "--sandbox", "read-only",
               "--output-last-message", "{last}", "-"],
     # -p forces headless; its text is appended to what arrives on stdin.
-    "gemini": ["-p", "Sigue la tarea anterior.", "--output-format", "text"],
+    "gemini": ["-p", "{nudge}", "--output-format", "text"],
     # copilot ignores stdin when given -p, so the task goes only through the pipe.
     "copilot": ["-s", "--no-ask-user"],
 }
@@ -522,23 +484,23 @@ def cli_client(engine: str, run=subprocess.run, which=shutil.which, timeout: flo
     Each call runs in an empty temporary folder: the task carries everything the
     page needs, so the agent never has a reason to read the user's folders."""
     if engine not in ENGINES:
-        raise ValueError(f"motor desconocido: {engine} (usa {', '.join(ENGINES)})")
+        raise ValueError(i18n.t("err_engine", engine=engine, engines=", ".join(ENGINES)))
     exe = which(engine)
     if not exe:
-        raise RuntimeError(f"{engine} no está instalado o no está en el PATH")
+        raise RuntimeError(i18n.t("err_not_installed", engine=engine))
 
     def ask(prompt: str) -> str:
         with tempfile.TemporaryDirectory(prefix="amanuense-") as tmp:
             last = Path(tmp) / "last-message.md"
-            args = [exe] + [a.replace("{last}", str(last)) for a in ENGINES[engine]]
+            args = [exe] + [a.replace("{last}", str(last)).replace("{nudge}", i18n.t("gemini_nudge")) for a in ENGINES[engine]]
             proc = run(args, input=prompt, capture_output=True, text=True, encoding="utf-8",
                        errors="replace", timeout=timeout, cwd=tmp)
             if proc.returncode != 0:
-                raise RuntimeError(f"{engine} terminó con código {proc.returncode}: "
-                                   f"{(proc.stderr or proc.stdout or '').strip()[-400:]}")
+                raise RuntimeError(i18n.t("err_exit", engine=engine, code=proc.returncode,
+                                          tail=(proc.stderr or proc.stdout or "").strip()[-400:]))
             answer = last.read_text(encoding="utf-8") if last.is_file() else proc.stdout
             if not answer.strip():
-                raise RuntimeError(f"{engine} no devolvió texto")
+                raise RuntimeError(i18n.t("err_empty", engine=engine))
             return answer
 
     return ask
@@ -576,7 +538,7 @@ def _toml_text(value: str) -> str:
 
 
 def export_agents(src: Path, dest: Path) -> list[Path]:
-    """Write the skills and agents of `src` (skills/<name>/SKILL.md, agentes/*.md,
+    """Write the skills and agents of `src` (skills/<name>/SKILL.md, agents/*.md or agentes/*.md,
     AGENTS.md) in the layout each tool reads: Claude Code, Codex, Gemini CLI and
     GitHub Copilot. `src` stays the only place to edit; rerun after changing it."""
     written: list[Path] = []
@@ -595,7 +557,7 @@ def export_agents(src: Path, dest: Path) -> list[Path]:
         for base in (".claude/skills", ".agents/skills"):  # Claude | Codex, Gemini, Copilot
             put(f"{base}/{name}/SKILL.md", skill.read_bytes())
 
-    for agent in sorted((src / "agentes").glob("*.md")):
+    for agent in sorted([*(src / "agents").glob("*.md"), *(src / "agentes").glob("*.md")]):
         meta, body = _split_frontmatter(agent.read_text(encoding="utf-8"))
         name, description = meta.get("name") or agent.stem, meta.get("description", "")
         plain = {"name": name, "description": description}
@@ -615,33 +577,47 @@ def export_agents(src: Path, dest: Path) -> list[Path]:
     return written
 
 
+def _lang_arg(argv: list[str]) -> str | None:
+    for i, arg in enumerate(argv):
+        if arg == "--lang" and i + 1 < len(argv):
+            return argv[i + 1]
+        if arg.startswith("--lang="):
+            return arg.split("=", 1)[1]
+    return None
+
+
 def main(argv: list[str] | None = None) -> None:
-    ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
+    import sys
+    argv = list(sys.argv[1:] if argv is None else argv)
+    i18n.choose(None, _lang_arg(argv))  # help and messages; a workshop's own language wins later
+    t = i18n.t
+    ap = argparse.ArgumentParser(description=t("cli_description"))
+    ap.add_argument("--lang", choices=i18n.LANGS, help=t("cli_lang"))
     sub = ap.add_subparsers(dest="cmd", required=True)
-    sub.add_parser("init", help="crea las carpetas del taller").add_argument("root", type=Path)
-    agents = sub.add_parser("agents", help="escribe skills y agentes para Claude Code, Codex, Gemini y Copilot")
-    agents.add_argument("dest", type=Path, help="raíz del repo donde dejarlos")
-    agents.add_argument("--src", type=Path, default=Path(__file__).resolve().parent / "skeleton",
-                        help="carpeta con skills/, agentes/ y AGENTS.md")
-    vault = sub.add_parser("obsidian", help="pasa un export de Confluence a un vault de Obsidian")
-    vault.add_argument("export", type=Path, help="el .docx exportado")
-    vault.add_argument("dest", type=Path, help="carpeta del vault donde dejar las notas")
-    vault.add_argument("--force", action="store_true", help="reescribir notas que ya existen")
-    run = sub.add_parser("run", help="analiza, prepara tareas y publica los RESULTADO.md")
+    after = argparse.ArgumentParser(add_help=False)  # --lang is also accepted after the subcommand
+    after.add_argument("--lang", choices=i18n.LANGS, default=argparse.SUPPRESS, help=t("cli_lang"))
+    sub.add_parser("init", help=t("cli_init"), parents=[after]).add_argument("root", type=Path)
+    agents = sub.add_parser("agents", help=t("cli_agents"), parents=[after])
+    agents.add_argument("dest", type=Path, help=t("cli_agents_dest"))
+    agents.add_argument("--src", type=Path, default=None, help=t("cli_agents_src"))
+    vault = sub.add_parser("obsidian", help=t("cli_obsidian"), parents=[after])
+    vault.add_argument("export", type=Path, help=t("cli_export"))
+    vault.add_argument("dest", type=Path, help=t("cli_vault"))
+    vault.add_argument("--force", action="store_true", help=t("cli_force"))
+    run = sub.add_parser("run", help=t("cli_run"), parents=[after])
     run.add_argument("root", type=Path)
-    run.add_argument("--ai-url", default=os.environ.get("AMANUENSE_AI_URL", ""),
-                     help="API compatible con OpenAI, p. ej. http://localhost:11434/v1")
+    run.add_argument("--ai-url", default=os.environ.get("AMANUENSE_AI_URL", ""), help=t("cli_ai_url"))
     run.add_argument("--ai-model", default=os.environ.get("AMANUENSE_AI_MODEL", ""))
     run.add_argument("--ai-cli", default=os.environ.get("AMANUENSE_AI_CLI", ""), choices=["", *ENGINES],
-                     help="usar un agente instalado: claude, codex, gemini o copilot")
-    run.add_argument("--content", action="store_true", help="comparar también por contenido (RAG)")
-    run.add_argument("--contradictions", action="store_true", help="con --content, juez de contradicciones")
+                     help=t("cli_ai_cli"))
+    run.add_argument("--content", action="store_true", help=t("cli_content"))
+    run.add_argument("--contradictions", action="store_true", help=t("cli_contradictions"))
     run.add_argument("--device", default=None)
-    run.add_argument("--no-open", action="store_true", help="no abrir el navegador al terminar")
+    run.add_argument("--no-open", action="store_true", help=t("cli_no_open"))
     a = ap.parse_args(argv)
 
     if a.cmd == "init":
-        print(init_workspace(a.root) / GUIDE)
+        print(init_workspace(a.root, a.lang) / i18n.name("guide"))
         return
     if a.cmd == "obsidian":
         from .obsidian import export_to_vault
@@ -649,10 +625,11 @@ def main(argv: list[str] | None = None) -> None:
             done = export_to_vault(a.export, a.dest, a.force)
         except (FileExistsError, FileNotFoundError) as e:
             raise SystemExit(f"✗ {e}") from None
-        print(f"{done['notes']} notas y {done['media']} imágenes en {done['vault']}")
+        print(t("cli_vault_done", notes=done["notes"], media=done["media"], vault=done["vault"]))
         return
     if a.cmd == "agents":
-        for path in export_agents(a.src, a.dest):
+        src = a.src or Path(__file__).resolve().parent / "skeleton" / i18n.current()
+        for path in export_agents(src, a.dest):
             print(path)
         return
     ai = None
@@ -660,7 +637,7 @@ def main(argv: list[str] | None = None) -> None:
         ai = cli_client(a.ai_cli)
     elif a.ai_url:
         if not a.ai_model:
-            ap.error("--ai-url necesita --ai-model (o AMANUENSE_AI_MODEL)")
+            ap.error(t("cli_needs_model"))
         ai = openai_client(a.ai_url, a.ai_model, os.environ.get("AMANUENSE_AI_KEY", ""))
     embed = judge = None
     if a.content:
@@ -668,10 +645,10 @@ def main(argv: list[str] | None = None) -> None:
         if a.contradictions:
             judge = rag_judge()
     from . import registro as log
-    summary = run_workspace(a.root, embed, judge, ai, log.history_from_env())
+    summary = run_workspace(a.root, embed, judge, ai, log.history_from_env(), lang=a.lang)
     for warning in summary["log_errors"]:
-        print("aviso:", warning)
-    print(f"{len(summary['ready'])}/{len(summary['tasks'])} tareas listas")
+        print(i18n.t("cli_warning"), warning)
+    print(i18n.t("cli_ready", ready=len(summary["ready"]), total=len(summary["tasks"])))
     print(summary["index"])
     if not a.no_open:
         webbrowser.open(summary["index"].resolve().as_uri())

@@ -32,26 +32,27 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Callable
 
+from . import i18n
 from . import taller as kit
 from .confluence import Page, _slug, normalize_title
 
-LOG_JSON = "registro.json"
-LOG_HTML = "registro.html"
-SNAPSHOT = "registro-export.json"
-REPOS_FILE = "repos.txt"
-REQUESTS_FILE = "peticiones.md"
-REQUESTS_DIR = "peticiones"
 DEFAULT_LOOKBACK_DAYS = 90
 MAX_VERSIONS = 50
-REQUESTS_TEXT = """# Peticiones de cambio
 
-Una línea por petición: «- Nombre: qué hay que cambiar». Al ejecutar el taller,
-la IA dice qué página tocar, qué cambiar y por qué, y prepara su tarea.
+# Workshop names and texts, kept as module attributes; they follow the current language.
+_NAMES = {"LOG_JSON": "log_json", "LOG_HTML": "log_html", "SNAPSHOT": "snapshot", "REPOS_FILE": "repos",
+          "REQUESTS_FILE": "requests", "REQUESTS_DIR": "requests_dir"}
+_TEXTS = {"REQUESTS_TEXT": "requests_text", "REPOS_TEXT": "repos_text"}
 
-"""
-REPOS_TEXT = """# Clones locales de los repos de Bitbucket, uno por línea.
-# El registro anota sus commits y avisa de las páginas que los citan.
-"""
+
+def __getattr__(attr: str) -> str:
+    if attr in _NAMES:
+        return i18n.name(_NAMES[attr])
+    if attr in _TEXTS:
+        return i18n.t(_TEXTS[attr])
+    raise AttributeError(f"module {__name__!r} has no attribute {attr!r}")
+
+
 Ai = Callable[[str], str]
 
 
@@ -130,7 +131,7 @@ class PageChange:
     def summary(self, limit: int = 8) -> str:
         lines = [f"+ {l}" for l in self.added] + [f"- {l}" for l in self.removed]
         more = len(lines) - limit
-        return "\n".join(lines[:limit] + ([f"(y {more} líneas más)"] if more > 0 else []))
+        return "\n".join(lines[:limit] + ([i18n.t("more_lines", n=more)] if more > 0 else []))
 
 
 def _body(page: Page) -> list[str]:
@@ -172,7 +173,7 @@ def git_commits(repo: Path, since: str, run=subprocess.run) -> list[dict]:
                 "--format=%x1e%H%x1f%an%x1f%aI%x1f%s"], capture_output=True, text=True,
                encoding="utf-8", errors="replace")
     if proc.returncode != 0:
-        raise RuntimeError(f"git log falló en {repo}: {(proc.stderr or '').strip()[-300:]}")
+        raise RuntimeError(i18n.t("err_git", repo=repo, error=(proc.stderr or "").strip()[-300:]))
     commits = []
     for record in proc.stdout.split("\x1e")[1:]:
         head, _, files = record.partition("\n")
@@ -198,7 +199,7 @@ def affected_pages(commit: dict, pages: list[Page]) -> list[str]:
 
 
 def read_repos(root: Path) -> list[Path]:
-    path = root / REPOS_FILE
+    path = root / i18n.name("repos")
     if not path.is_file():
         return []
     lines = path.read_text(encoding="utf-8").splitlines()
@@ -244,28 +245,29 @@ def _match_title(answer: str, pages: list[Page]) -> str:
 def route_request(request: dict, pages: list[Page], ai: Ai) -> dict:
     """Asks the AI which page the request belongs to, what to change and why."""
     listing = "\n".join(f"- «{p.title}» — {' '.join(_body(p))[:200]}" for p in pages)
-    prompt = (
-        "Eres el curador de la documentación. Una persona pide un cambio. Elige la página que hay "
-        "que cambiar de esta lista (usa su título exacto) y responde SOLO con un objeto JSON:\n"
-        '{"pagina": "título exacto o vacío si ninguna encaja", "cambio": "qué hay que cambiar", '
-        '"motivo": "por qué"}\n\n'
-        f"## Petición de {request['by']}\n\n{request['text']}\n\n## Páginas\n\n{listing}\n")
+    prompt = i18n.t("route_prompt", by=request["by"], text=request["text"], listing=listing)
     data = _json_object(ai(prompt))
-    return {"pagina": _match_title(str(data.get("pagina") or ""), pages), "cambio": str(data.get("cambio") or "").strip(),
-            "motivo": str(data.get("motivo") or "").strip()}
+
+    def field(*keys: str) -> str:
+        return next((str(data[k]).strip() for k in keys if data.get(k)), "")
+
+    # The log stores the Spanish keys; the AI may answer with either language's.
+    return {"pagina": _match_title(field("page", "pagina", "página"), pages),
+            "cambio": field("change", "cambio"), "motivo": field("reason", "motivo")}
 
 
 def _request_task(out: Path, entry: dict, page: Page, template, bible: str) -> str:
     slug = f"{_slug(page.title)}-{entry['id'][:6]}"
-    rel = f"{REQUESTS_DIR}/{slug}"
+    n = i18n.name
+    rel = f"{n('requests_dir')}/{slug}"
     d = out / rel
     d.mkdir(parents=True, exist_ok=True)
-    local = (f"# {page.title}\n\nInstrucciones de actualización: {entry['cambio'] or entry['request']}\n\n"
-             f"Petición de {entry['by']}: {entry['request']}\n\nMotivo: {entry['motivo']}\n")
-    task = kit.Task(slug, "update", page.title, REQUESTS_FILE, page)
-    (d / "LOCAL.md").write_text(local, encoding="utf-8")
-    (d / "ACTUAL.md").write_text(page.markdown, encoding="utf-8")
-    (d / "TAREA.md").write_text(kit._prompt(task, local, template, bible), encoding="utf-8")
+    local = i18n.t("request_local", title=page.title, change=entry["cambio"] or entry["request"],
+                   by=entry["by"], request=entry["request"], reason=entry["motivo"])
+    task = kit.Task(slug, "update", page.title, n("requests"), page)
+    (d / n("local_copy")).write_text(local, encoding="utf-8")
+    (d / n("current")).write_text(page.markdown, encoding="utf-8")
+    (d / n("task")).write_text(kit._prompt(task, local, template, bible), encoding="utf-8")
     return rel
 
 
@@ -290,9 +292,10 @@ def update_log(root: Path, exports: list[Path], pages: list[Page], ready: dict[s
                history: ConfluenceHistory | None = None, router: Ai | None = None,
                template=None, bible: str = "", run=subprocess.run) -> dict:
     """Adds this run's changes to the log; returns {"entries", "request_tasks", "errors"}."""
-    out = root / kit.OUT_DIR
+    n = i18n.name
+    out = root / n("out")
     out.mkdir(parents=True, exist_ok=True)
-    entries: list[dict] = _load(out / LOG_JSON, [])
+    entries: list[dict] = _load(out / n("log_json"), [])
     known = {e["id"] for e in entries}
     errors: list[str] = []
 
@@ -303,7 +306,7 @@ def update_log(root: Path, exports: list[Path], pages: list[Page], ready: dict[s
 
     # Confluence: compare with the export seen last time.
     created = max((export_created(e) for e in exports), default="") or _now()
-    snap = _load(out / SNAPSHOT, None)
+    snap = _load(out / n("snapshot"), None)
     current = {p.title: p.markdown for p in pages}
     if pages and snap and snap["pages"] != current:
         old = [Page(t, m) for t, m in snap["pages"].items()]
@@ -320,7 +323,7 @@ def update_log(root: Path, exports: list[Path], pages: list[Page], ready: dict[s
                  "by": ", ".join(authors) if authors else "?", "change": change.kind,
                  "what": change.summary(), "message": "; ".join(v["message"] for v in versions if v["message"])})
     if pages and (not snap or snap["pages"] != current):
-        (out / SNAPSHOT).write_text(json.dumps({"created": created, "pages": current}, ensure_ascii=False),
+        (out / n("snapshot")).write_text(json.dumps({"created": created, "pages": current}, ensure_ascii=False),
                                     encoding="utf-8")
 
     # Code: commits since the previous export (or a lookback window the first time).
@@ -338,7 +341,7 @@ def update_log(root: Path, exports: list[Path], pages: list[Page], ready: dict[s
 
     # Requests: route each new one, prepare its task.
     by_title = {p.title: p for p in pages}
-    req_file = root / REQUESTS_FILE
+    req_file = root / n("requests")
     for req in read_requests(req_file.read_text(encoding="utf-8") if req_file.is_file() else ""):
         previous = next((e for e in entries if e["id"] == req["id"]), None)
         if not router or (previous and previous.get("page")):
@@ -346,7 +349,7 @@ def update_log(root: Path, exports: list[Path], pages: list[Page], ready: dict[s
         try:
             route = route_request(req, pages, router)
         except Exception as exc:
-            errors.append(f"IA (petición de {req['by']}): {exc}")
+            errors.append(i18n.t("err_request", by=req["by"], error=exc))
             continue
         entry = {"id": req["id"], "kind": "peticion", "when": _now(), "by": req["by"], "request": req["text"],
                  "page": route["pagina"], "cambio": route["cambio"], "motivo": route["motivo"], "task": ""}
@@ -361,51 +364,53 @@ def update_log(root: Path, exports: list[Path], pages: list[Page], ready: dict[s
     request_tasks = {e["task"]: e for e in entries if e["kind"] == "peticion" and e.get("task")}
     for rel, entry in request_tasks.items():
         page = by_title.get(entry["page"])
-        task = kit.Task(Path(rel).name, "update", entry["page"], REQUESTS_FILE, page)
+        task = kit.Task(Path(rel).name, "update", entry["page"], n("requests"), page)
         if (out / rel).is_dir() and kit._publish(out / rel, task) is not None:
             ready[rel] = task
     for rel, task in ready.items():
-        result = (out / rel / kit.RESULT).read_text(encoding="utf-8")
+        result = (out / rel / n("result")).read_text(encoding="utf-8")
         add({"id": _id("taller", rel, result), "kind": "taller", "when": _now(), "by": _user(),
-             "page": task.title, "what": "propuesta lista para revisar", "task": rel})
+             "page": task.title, "what": i18n.t("proposal_ready"), "task": rel})
 
-    (out / LOG_JSON).write_text(json.dumps(entries, ensure_ascii=False, indent=1), encoding="utf-8")
-    (out / LOG_HTML).write_text(render_log(entries, errors), encoding="utf-8")
+    (out / n("log_json")).write_text(json.dumps(entries, ensure_ascii=False, indent=1), encoding="utf-8")
+    (out / n("log_html")).write_text(render_log(entries, errors), encoding="utf-8")
     return {"entries": entries, "request_tasks": sorted(request_tasks), "errors": errors}
 
 
-KIND_LABEL = {"confluence": "Confluence", "codigo": "Código", "peticion": "Petición", "taller": "Taller"}
+def _label(prefix: str, value: str) -> str:
+    key = f"{prefix}_{value}"
+    return i18n.t(key) if key in i18n.TEXT else value
 
 
 def _detail(e: dict) -> str:
-    esc = html.escape
+    esc, n, t = html.escape, i18n.name, i18n.t
     if e["kind"] == "confluence":
         msg = f"<p>«{esc(e['message'])}»</p>" if e.get("message") else ""
-        return f"página {esc(e['change'])}{msg}<pre>{esc(e['what'])}</pre>"
+        return f"{esc(_label('change', e['change']))}{msg}<pre>{esc(e['what'])}</pre>"
     if e["kind"] == "codigo":
-        pages = (f"<p><b>Revisar:</b> {esc(', '.join(e['pages']))}</p>" if e.get("pages") else "")
+        pages = (f"<p><b>{t('review')}</b> {esc(', '.join(e['pages']))}</p>" if e.get("pages") else "")
         return f"{esc(e['repo'])}: {esc(e['what'])}<br><small>{esc(', '.join(e['files'][:6]))}</small>{pages}"
     if e["kind"] == "peticion":
         if not e.get("page"):
-            return f"«{esc(e['request'])}»<p>La IA no encontró página: asígnala a mano.</p>"
-        return (f"«{esc(e['request'])}»<p><b>Qué:</b> {esc(e['cambio'])}<br><b>Por qué:</b> "
-                f"{esc(e['motivo'])}</p><a href=\"{esc(e['task'])}/TAREA.md\">TAREA.md</a>")
-    return f'{esc(e["what"])} · <a href="{esc(e["task"])}/CAMBIOS.html">CAMBIOS.html</a>'
+            return f"«{esc(e['request'])}»<p>{t('no_page')}</p>"
+        return (f"«{esc(e['request'])}»<p><b>{t('what')}</b> {esc(e['cambio'])}<br><b>{t('why')}</b> "
+                f"{esc(e['motivo'])}</p><a href=\"{esc(e['task'])}/{n('task')}\">{n('task')}</a>")
+    return f'{esc(e["what"])} · <a href="{esc(e["task"])}/{n("changes")}">{n("changes")}</a>'
 
 
 def render_log(entries: list[dict], errors: list[str] | None = None) -> str:
+    t = i18n.t
     rows = []
     for e in sorted(entries, key=lambda e: e["when"], reverse=True):
         rows.append(f"<tr><td>{html.escape(e['when'][:16].replace('T', ' '))}</td>"
-                    f"<td>{KIND_LABEL.get(e['kind'], e['kind'])}</td><td>{html.escape(e['by'])}</td>"
+                    f"<td>{_label('kind', e['kind'])}</td><td>{html.escape(e['by'])}</td>"
                     f"<td>{html.escape(e.get('page') or '')}</td><td>{_detail(e)}</td></tr>")
-    warn = ("<p><b>Avisos:</b></p><ul>" + "".join(f"<li>{html.escape(x)}</li>" for x in errors) + "</ul>"
-            if errors else "")
-    body = (f"<h1>Registro de cambios</h1><p>Qué cambió y quién lo cambió. Para pedir un cambio, añade "
-            f"una línea «- Nombre: qué cambiar» a <code>{REQUESTS_FILE}</code> y vuelve a ejecutar el taller. "
-            f'<a href="index.html">Volver al taller</a>.</p>{warn}<table><thead><tr><th>Fecha</th><th>Origen</th>'
-            f"<th>Quién</th><th>Página</th><th>Qué</th></tr></thead><tbody>{''.join(rows)}</tbody></table>")
-    return kit._html_page("Registro de cambios", body)
+    warn = (f"<p><b>{t('log_warnings')}</b></p><ul>" + "".join(f"<li>{html.escape(x)}</li>" for x in errors)
+            + "</ul>" if errors else "")
+    heads = "".join(f"<th>{t(k)}</th>" for k in ("col_date", "col_source", "col_who", "col_page", "col_what"))
+    body = (f"<h1>{t('log_title')}</h1><p>{t('log_intro', requests=i18n.name('requests'))}</p>{warn}"
+            f"<table><thead><tr>{heads}</tr></thead><tbody>{''.join(rows)}</tbody></table>")
+    return kit._html_page(t("log_title"), body)
 
 
 def history_from_env(env=os.environ) -> ConfluenceHistory | None:

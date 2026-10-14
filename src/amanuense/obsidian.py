@@ -18,6 +18,7 @@ import zipfile
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
+from . import i18n
 from .confluence import NS, W, _heading_levels, _style_level, _table, _text
 
 REL = "{http://schemas.openxmlformats.org/officeDocument/2006/relationships}"
@@ -156,13 +157,14 @@ def export_to_vault(export: Path, vault: Path, force: bool = False) -> dict:
                 target = v.reserve(folder, safe_name(page))
                 v.put(target, page, _markdown(head, 2))
                 page_links.append(v.link(target, page))
-        v.put(top_index, top, _markdown(intro, 1), "Páginas", page_links)
+        v.put(top_index, top, _markdown(intro, 1), i18n.t("vault_pages"), page_links)
         top_links.append(v.link(top_index, top))
-    v.put(vault / f"{INDEX}.md", "Export de Confluence", [f"Origen: `{export.name}`"], "Páginas", top_links)
+    v.put(vault / f"{INDEX}.md", i18n.t("vault_title"), [i18n.t("vault_source", name=export.name)],
+          i18n.t("vault_pages"), top_links)
 
     clashes = [p for p in v.notes if p.exists()]
     if clashes and not force:
-        raise FileExistsError(f"{len(clashes)} notas ya existen (p. ej. {clashes[0]}); usa --force para reescribirlas")
+        raise FileExistsError(i18n.t("vault_clash", n=len(clashes), first=clashes[0]))
     for path, text in v.notes.items():
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(text, encoding="utf-8", newline="\n")

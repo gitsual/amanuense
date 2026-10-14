@@ -9,6 +9,8 @@ import sys
 import zipfile
 from pathlib import Path
 
+import pytest
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from amanuense import taller as docs_kit  # noqa: E402
@@ -369,7 +371,8 @@ def test_cli_flag_picks_an_agent_cli(tmp_path, monkeypatch):
     assert len(list((ws / docs_kit.OUT_DIR / "tareas").glob("*/RESULTADO.md"))) == 2
 
 
-SKELETON = Path(__file__).resolve().parents[1] / "src" / "amanuense" / "skeleton"
+SKELETONS = Path(__file__).resolve().parents[1] / "src" / "amanuense" / "skeleton"
+SKELETON = SKELETONS / "es"
 SKILLS = ("actualizar-pagina-confluence", "auditar-documentacion", "nueva-pagina-confluence")
 
 
@@ -401,9 +404,12 @@ def test_export_agents_writes_native_files_for_every_tool(tmp_path):
     assert (tmp_path / "AGENTS.md").read_bytes() == (SKELETON / "AGENTS.md").read_bytes()
 
 
-def test_skeleton_ships_its_native_files_in_sync(tmp_path):
-    written = docs_kit.export_agents(SKELETON, tmp_path)
+@pytest.mark.parametrize("lang", ["en", "es"])
+def test_skeleton_ships_its_native_files_in_sync(tmp_path, lang):
+    skeleton = SKELETONS / lang
+    written = docs_kit.export_agents(skeleton, tmp_path)
+    assert written
     for path in written:
         rel = path.relative_to(tmp_path)
-        shipped, fresh = ((SKELETON / rel).read_bytes(), path.read_bytes())  # a Windows checkout may add CR
+        shipped, fresh = ((skeleton / rel).read_bytes(), path.read_bytes())  # a Windows checkout may add CR
         assert shipped.replace(b"\r\n", b"\n") == fresh.replace(b"\r\n", b"\n"), f"run: amanuense agents {rel}"

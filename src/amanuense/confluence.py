@@ -44,6 +44,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Sequence
 
+from . import i18n
+
 Embed = Callable[[list[str]], Sequence[Sequence[float]]]
 # (premisas, hipótesis) → P(contradicción) alineada.
 Judge = Callable[[list[str], list[str]], Sequence[float]]
@@ -51,8 +53,8 @@ Judge = Callable[[list[str], list[str]], Sequence[float]]
 NS = {"w": "http://schemas.openxmlformats.org/wordprocessingml/2006/main"}
 W = "{%s}" % NS["w"]
 LOCAL_EXTENSIONS = {".md", ".txt", ".docx"}
-UPDATE_MARKER = re.compile(r"instrucciones\s+de\s+actualizaci[oó]n", re.IGNORECASE)
-UNTITLED = "(sin título)"
+UPDATE_MARKER = re.compile(r"instrucciones\s+de\s+actualizaci[oó]n|update\s+instructions", re.IGNORECASE)
+UNTITLED_TITLES = {i18n.TEXT["untitled"][lang] for lang in i18n.LANGS}
 
 
 @dataclass
@@ -146,7 +148,7 @@ def docx_to_pages(path: Path, page_level: int = 1) -> list[Page]:
 
     def flush():
         if title is not None or any(l.strip() for l in lines):
-            pages.append(Page(title or UNTITLED, "\n".join(lines).strip() + "\n"))
+            pages.append(Page(title or i18n.t("untitled"), "\n".join(lines).strip() + "\n"))
 
     for el in body:
         if el.tag == W + "tbl":
@@ -250,7 +252,7 @@ def compare(pages: list[Page], local: list[LocalDoc], embed: Embed | None = None
     """Sin `embed` sólo cruza títulos. Con `embed` (textos → vectores normalizados)
     puntúa cada pareja, busca por contenido la página de lo que no casa por título y
     señala duplicados locales."""
-    pages = [p for p in pages if p.title != UNTITLED]
+    pages = [p for p in pages if p.title not in UNTITLED_TITLES]
     by_title = {normalize_title(p.title): i for i, p in enumerate(pages)}
     sims = None
     if embed and pages and local:
@@ -272,7 +274,7 @@ def compare(pages: list[Page], local: list[LocalDoc], embed: Embed | None = None
             matched.add(pi)
             kind = "update_by_content" if d.has_update_instructions else "similar_content"
             rows.append(Row(kind, d.title, d.rel, pages[pi].title,
-                            sims[li][pi] if sims else None, "título parecido"))
+                            sims[li][pi] if sims else None, i18n.t("similar_title")))
             continue
         if sims:
             best = max(range(len(pages)), key=lambda j: sims[li][j])
@@ -332,22 +334,45 @@ def find_contradictions(rows: list[Row], pages: list[Page], local: list[LocalDoc
     return found
 
 
-SECTIONS = [
-    ("update", "Actualizar en Confluence", "El documento local trae instrucciones para su página."),
-    ("same_title_no_instructions", "Mismo título, sin instrucciones",
-     "¿Duplicado del export o versión nueva sin marcar? Revisar a mano."),
-    ("instructions_without_target", "Instrucciones sin página destino",
-     "Traen instrucciones de actualización pero el export no tiene esa página (¿renombrada o borrada?)."),
-    ("update_by_content", "Actualizar en Confluence (página renombrada)",
-     "Traen instrucciones; su página tiene otro título pero el mismo contenido."),
-    ("similar_content", "Contenido parecido con otro título",
-     "¿Copia del export, renombrado o fusión pendiente?"),
-    ("local_duplicate", "Duplicados en local", "Dos documentos locales casi iguales: quedarse con uno."),
-    ("contradiction", "Contradicciones",
-     "Frase de referencia ↔ frase local. En «Actualizar» puede ser el cambio buscado; en el resto, revisar."),
-    ("new", "Nuevos en local", "Candidatos a página nueva."),
-    ("confluence_only", "Sólo en Confluence", "Páginas sin equivalente local: vigentes, obsoletas o pendientes de migrar."),
-]
+_SECTIONS = {
+    "en": [
+        ("update", "Update in Confluence", "The local document carries instructions for its page."),
+        ("same_title_no_instructions", "Same title, no instructions",
+         "A duplicate of the export or an unmarked new version? Check by hand."),
+        ("instructions_without_target", "Instructions without a target page",
+         "They carry update instructions but the export has no such page (renamed or deleted?)."),
+        ("update_by_content", "Update in Confluence (renamed page)",
+         "They carry instructions; their page has another title but the same content."),
+        ("similar_content", "Similar content under another title",
+         "A copy of the export, a rename or a pending merge?"),
+        ("local_duplicate", "Duplicates in local", "Two nearly identical local documents: keep one."),
+        ("contradiction", "Contradictions",
+         "Reference sentence ↔ local sentence. Under \"Update\" it may be the intended change; elsewhere, check it."),
+        ("new", "New in local", "Candidates for a new page."),
+        ("confluence_only", "Only in Confluence", "Pages with no local counterpart: current, obsolete or not migrated yet."),
+    ],
+    "es": [
+        ("update", "Actualizar en Confluence", "El documento local trae instrucciones para su página."),
+        ("same_title_no_instructions", "Mismo título, sin instrucciones",
+         "¿Duplicado del export o versión nueva sin marcar? Revisar a mano."),
+        ("instructions_without_target", "Instrucciones sin página destino",
+         "Traen instrucciones de actualización pero el export no tiene esa página (¿renombrada o borrada?)."),
+        ("update_by_content", "Actualizar en Confluence (página renombrada)",
+         "Traen instrucciones; su página tiene otro título pero el mismo contenido."),
+        ("similar_content", "Contenido parecido con otro título",
+         "¿Copia del export, renombrado o fusión pendiente?"),
+        ("local_duplicate", "Duplicados en local", "Dos documentos locales casi iguales: quedarse con uno."),
+        ("contradiction", "Contradicciones",
+         "Frase de referencia ↔ frase local. En «Actualizar» puede ser el cambio buscado; en el resto, revisar."),
+        ("new", "Nuevos en local", "Candidatos a página nueva."),
+        ("confluence_only", "Sólo en Confluence", "Páginas sin equivalente local: vigentes, obsoletas o pendientes de migrar."),
+    ],
+}
+
+
+def sections() -> list[tuple[str, str, str]]:
+    """(kind, label, hint) of every report section, in the current language."""
+    return _SECTIONS[i18n.current()]
 
 
 def _line(r: Row) -> str:
@@ -361,9 +386,9 @@ def _line(r: Row) -> str:
 
 
 def render_report(rows: list[Row]) -> str:
-    out = ["# Confluence ↔ documentación local", ""]
-    out += [f"- {label}: **{sum(r.kind == k for r in rows)}**" for k, label, _ in SECTIONS]
-    for kind, label, hint in SECTIONS:
+    out = [i18n.t("report_title"), ""]
+    out += [f"- {label}: **{sum(r.kind == k for r in rows)}**" for k, label, _ in sections()]
+    for kind, label, hint in sections():
         group = [r for r in rows if r.kind == kind]
         if not group:
             continue
