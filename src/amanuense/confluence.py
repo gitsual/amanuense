@@ -52,7 +52,8 @@ Judge = Callable[[list[str], list[str]], Sequence[float]]
 
 NS = {"w": "http://schemas.openxmlformats.org/wordprocessingml/2006/main"}
 W = "{%s}" % NS["w"]
-LOCAL_EXTENSIONS = {".md", ".txt", ".docx"}
+LOCAL_EXTENSIONS = {".md", ".markdown", ".txt", ".docx", ".html", ".htm"}
+HTML_EXTENSIONS = {".html", ".htm"}
 UPDATE_MARKER = re.compile(r"instrucciones\s+de\s+actualizaci[oó]n|update\s+instructions", re.IGNORECASE)
 UNTITLED_TITLES = {i18n.TEXT["untitled"][lang] for lang in i18n.LANGS}
 
@@ -82,7 +83,7 @@ class Row:
 
 
 def normalize_title(title: str) -> str:
-    t = re.sub(r"\.(md|txt|docx)$", "", title.strip(), flags=re.IGNORECASE)
+    t = re.sub(r"\.(md|markdown|txt|docx|html?)$", "", title.strip(), flags=re.IGNORECASE)
     t = unicodedata.normalize("NFKD", t).encode("ascii", "ignore").decode().lower()
     t = re.sub(r"^\s*\d+(\.\d+)*\s*[-_.)]*\s*", "", t)
     return " ".join(re.sub(r"[^a-z0-9]+", " ", t).split())
@@ -195,9 +196,14 @@ def split_sentences(text: str, min_chars: int = 25, max_chars: int = 320) -> lis
 
 
 def _read_local(p: Path) -> str:
-    if p.suffix.lower() != ".docx":
-        return p.read_text(encoding="utf-8", errors="replace")
-    return "\n".join(pg.markdown for pg in docx_to_pages(p))
+    suffix = p.suffix.lower()
+    if suffix == ".docx":
+        return "\n".join(pg.markdown for pg in docx_to_pages(p))
+    text = p.read_text(encoding="utf-8", errors="replace")
+    if suffix in HTML_EXTENSIONS:
+        from .xhtml import html_to_markdown
+        return html_to_markdown(text)
+    return text
 
 
 def load_local(root: Path) -> list[LocalDoc]:

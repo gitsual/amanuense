@@ -252,6 +252,15 @@ la IA dice qué página tocar, qué cambiar y por qué, y prepara su tarea.
     # ── report ──
     "report_title": {"en": "# Confluence ↔ local documentation", "es": "# Confluence ↔ documentación local"},
     "untitled": {"en": "(untitled)", "es": "(sin título)"},
+    # ── Confluence storage read as Markdown: what has no Markdown form stays visible ──
+    "storage_macro": {"en": "⟦Confluence macro: {name}{params}⟧", "es": "⟦Macro de Confluence: {name}{params}⟧"},
+    "storage_image": {"en": "⟦Confluence image: {name}⟧", "es": "⟦Imagen de Confluence: {name}⟧"},
+    "storage_attachment": {"en": "⟦Confluence attachment: {name}⟧", "es": "⟦Adjunto de Confluence: {name}⟧"},
+    "storage_link": {"en": "⟦link to the page «{name}»⟧", "es": "⟦enlace a la página «{name}»⟧"},
+    "storage_user": {"en": "⟦Confluence user: {name}⟧", "es": "⟦Usuario de Confluence: {name}⟧"},
+    "storage_layout": {"en": "⟦Confluence column layout⟧", "es": "⟦Diseño en columnas de Confluence⟧"},
+    "storage_tasks": {"en": "⟦Confluence task list⟧", "es": "⟦Lista de tareas de Confluence⟧"},
+    "storage_element": {"en": "⟦Confluence element: {name}⟧", "es": "⟦Elemento de Confluence: {name}⟧"},
     "similar_title": {"en": "similar title", "es": "título parecido"},
     # ── log ──
     "log_title": {"en": "Change log", "es": "Registro de cambios"},
