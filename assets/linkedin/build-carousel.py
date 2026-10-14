@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """Build the LinkedIn carousel for amanuense (1200x1500, 4:5), one PDF per language.
 
-Every picture is a crop of a real screenshot of the made-up demo workshop
-(capture.py) or of the Obsidian take; only the gold boxes are drawn on top.
+Every picture is a crop of a real screenshot of the made-up demo workshop in that
+language (capture.py) or of its Obsidian take; only the gold boxes are drawn on top.
 
-    python3 build-carousel.py es      # -> amanuense-carousel-es.pdf
-    python3 build-carousel.py en
+    python3 build-carousel.py en      # -> amanuense-carousel-en.pdf
+    python3 build-carousel.py es
 """
 from __future__ import annotations
 
@@ -35,15 +35,27 @@ F_ARROW = ImageFont.truetype("/usr/share/fonts/Adwaita/AdwaitaSans-Regular.ttf",
 F_URL = ImageFont.truetype(SANS_B, 40)
 URL = "github.com/gitsual/amanuense"
 
-# Shot slides: image, crop rect (x, y, w; h derived from the card), boxes.
+# Shot slides per language: image, crop rect (x, y, w; h derived from the card), boxes.
+# The boxes follow shots/<lang>/boxes.json, which capture.py writes.
 SHOT = {
-    "hook": ("c02.png", (0, 0, 1400), [(6, 22, 1320, 50)]),
-    "informe": ("informe.png", (120, 150, 1500), [(1020, 1040, 400, 145)]),
-    "cambios": ("c01.png", (0, 10, 1350), [(40, 160, 760, 44), (840, 262, 360, 56), (840, 550, 640, 56)]),
-    "dato": ("c02.png", (1768, 335, 950), [(1790, 560, 420, 52)]),
-    "pegar": ("pegar.png", (120, 60, 1450), [(430, 343, 1050, 90)]),
-    "registro": ("registro.png", (100, 650, 1980), [(130, 720, 1940, 300), (130, 1000, 1940, 290)]),
-    "obsidian": ("obs-71.5.png", (380, 90, 760), []),
+    "es": {
+        "hook": ("c02.png", (0, 0, 1400), [(6, 22, 1320, 50)]),
+        "informe": ("informe.png", (120, 150, 1500), [(1020, 1040, 400, 145)]),
+        "cambios": ("c01.png", (0, 10, 1350), [(40, 160, 760, 44), (840, 262, 360, 56), (840, 550, 640, 56)]),
+        "dato": ("c02.png", (1768, 335, 950), [(1790, 560, 420, 52)]),
+        "pegar": ("pegar.png", (120, 60, 1450), [(430, 343, 1050, 90)]),
+        "registro": ("registro.png", (100, 650, 1980), [(130, 720, 1940, 300), (130, 1000, 1940, 290)]),
+        "obsidian": ("obs.png", (380, 90, 760), []),
+    },
+    "en": {
+        "hook": ("c02.png", (0, 0, 1400), [(6, 22, 1320, 50)]),
+        "informe": ("informe.png", (120, 150, 1500), [(982, 1040, 440, 145)]),
+        "cambios": ("c01.png", (0, 10, 1350), [(40, 160, 664, 44), (744, 262, 322, 56), (744, 550, 602, 56)]),
+        "dato": ("c02.png", (2370, 335, 950), [(2878, 524, 380, 52)]),
+        "pegar": ("pegar.png", (120, 60, 1450), [(430, 343, 1009, 90)]),
+        "registro": ("registro.png", (100, 650, 1980), [(130, 720, 1940, 300), (130, 1000, 1940, 290)]),
+        "obsidian": ("obs.png", (380, 90, 760), []),
+    },
 }
 
 TEXT = {
@@ -76,7 +88,7 @@ TEXT = {
                    "Claude, Codex, Gemini, Copilot u Ollama.\nO sin IA: pegas tú la tarea en un chat.",
                    "Nada llega a Confluence sin que una\npersona lo revise y lo pegue."]),
         "cta": ("Código abierto · licencia MIT",
-                "Los datos y las respuestas de la IA de esta demo son inventados.\nLa interfaz del taller está en español."),
+                "Los datos y las respuestas de la IA de esta demo son inventados.\nEl taller funciona en español y en inglés."),
         "swipe": "Desliza →",
     },
     "en": {
@@ -108,7 +120,7 @@ TEXT = {
                    "Claude, Codex, Gemini, Copilot or Ollama.\nOr no AI: paste the task into a chat.",
                    "Nothing reaches Confluence until a\nperson reviews it and pastes it."]),
         "cta": ("Open source · MIT licensed",
-                "The data and the AI answers in this demo are made up.\nThe workshop UI is in Spanish."),
+                "The data and the AI answers in this demo are made up.\nThe workshop runs in English or Spanish."),
         "swipe": "Swipe →",
     },
 }
@@ -158,10 +170,10 @@ def footer(d, text):
     d.text((W - MARGIN_X - aw, H - 72), word, font=F_FOOT, fill=ACCENT, anchor="ra")
 
 
-def card(im, key):
-    name, (x, y, w), boxes = SHOT[key]
+def card(im, lang, key):
+    name, (x, y, w), boxes = SHOT[lang][key]
     h = w * IH / IW
-    src = Image.open(SHOTS / name).convert("RGB")
+    src = Image.open(SHOTS / lang / name).convert("RGB")
     canvas = Image.new("RGB", (src.width + 2000, src.height + 2000), "white")
     canvas.paste(src, (1000, 1000))
     crop = canvas.crop((int(x + 1000), int(y + 1000), int(x + w + 1000), int(y + h + 1000)))
@@ -176,12 +188,12 @@ def card(im, key):
     im.paste(crop, IMG[:2], mask)
 
 
-def shot_slide(t, key, idx, total, ttl, txt, foot=None):
+def shot_slide(lang, key, idx, total, ttl, txt, foot=None):
     im = Image.new("RGB", (W, H), BG)
     d = ImageDraw.Draw(im)
     header(d, im, idx, total)
     title(d, ttl, 150, 64 if ttl.count("\n") else 68)
-    card(im, key)
+    card(im, lang, key)
     body(d, txt, IMG[3] + 36)
     if foot:
         footer(d, foot)
@@ -199,7 +211,7 @@ def build(lang):
             d = ImageDraw.Draw(im)
             header(d, im, idx, total)
             title(d, t["cover"][0], 150, 84)
-            card(im, "hook")
+            card(im, lang, "hook")
             body(d, t["cover"][1], IMG[3] + 36)
             footer(d, t["swipe"])
         elif key == "problem":
@@ -237,7 +249,7 @@ def build(lang):
                 y += 42
         else:
             ttl, txt = t[key]
-            im = shot_slide(t, key, idx, total, ttl, txt)
+            im = shot_slide(lang, key, idx, total, ttl, txt)
         slides.append(im)
     out = HERE / f"slides-{lang}"
     out.mkdir(exist_ok=True)
@@ -252,4 +264,4 @@ def build(lang):
 
 
 if __name__ == "__main__":
-    build(sys.argv[1] if len(sys.argv) > 1 else "es")
+    build(sys.argv[1] if len(sys.argv) > 1 else "en")

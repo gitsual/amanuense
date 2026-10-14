@@ -1,9 +1,30 @@
 {
- "scene-intro": {"es": "Amanuense trabaja con MIND, el Confluence de la suite Atlassian. Toma el export de Word de un espacio, lo compara con tus borradores y con tu código, y lo pasa a Obsidian. Todo lo que ves es un espacio de ejemplo inventado."},
- "scene-informe": {"es": "Cada vez que lo ejecutas, escribe un informe: qué páginas hay que actualizar, cuáles son nuevas, cuáles están duplicadas y cuáles sólo existen en Confluence. Y prepara una tarea por página, lista para cualquier IA."},
- "scene-cambios": {"es": "Cuando la IA devuelve su propuesta, ves el cambio línea a línea contra lo que hay hoy en Confluence. Tú decides. Si la propuesta trae un dato que no estaba en ninguna fuente, el taller lo marca antes de que lo apruebes."},
- "scene-pegar": {"es": "Lo aprobado sale en una página lista para copiar y pegar en Confluence. Nada se publica solo."},
- "scene-registro": {"es": "El registro dice qué cambió y quién lo cambió. Las ediciones en Confluence, con su autor; los commits del código que dejan una página desfasada; y las peticiones del equipo, donde la IA elige qué página tocar y explica por qué."},
- "scene-obsidian": {"es": "Y con un solo comando, el espacio entero de MIND pasa a un vault de Obsidian: una nota por página, el mismo árbol, los enlaces y las imágenes."},
- "scene-cierre": {"es": "Todo corre en tu máquina, en Linux o en Windows. Tú eliges la IA, y tú apruebas cada cambio."}
+ "scene-intro": {
+  "en": "Amanuense works with MIND, the Confluence of the Atlassian suite. It takes the Word export of a space, compares it with your drafts and your code, and turns it into Obsidian. Everything you see is a made-up example space.",
+  "es": "Amanuense trabaja con MIND, el Confluence de la suite Atlassian. Toma el export de Word de un espacio, lo compara con tus borradores y con tu código, y lo pasa a Obsidian. Todo lo que ves es un espacio de ejemplo inventado."
+ },
+ "scene-informe": {
+  "en": "Every time you run it, it writes a report: which pages to update, which are new, which are duplicates and which only exist in Confluence. And it prepares one task per page, ready for any AI.",
+  "es": "Cada vez que lo ejecutas, escribe un informe: qué páginas hay que actualizar, cuáles son nuevas, cuáles están duplicadas y cuáles sólo existen en Confluence. Y prepara una tarea por página, lista para cualquier IA."
+ },
+ "scene-cambios": {
+  "en": "When the AI returns its proposal, you see the change line by line against what Confluence has today. You decide. If the proposal brings a figure that was in none of its sources, the workshop flags it before you approve.",
+  "es": "Cuando la IA devuelve su propuesta, ves el cambio línea a línea contra lo que hay hoy en Confluence. Tú decides. Si la propuesta trae un dato que no estaba en ninguna fuente, el taller lo marca antes de que lo apruebes."
+ },
+ "scene-pegar": {
+  "en": "What you approve comes out as a page ready to copy and paste into Confluence. Nothing publishes itself.",
+  "es": "Lo aprobado sale en una página lista para copiar y pegar en Confluence. Nada se publica solo."
+ },
+ "scene-registro": {
+  "en": "The log says what changed and who changed it. Edits in Confluence, with their author; code commits that leave a page out of date; and requests from the team, where the AI picks the page to touch and explains why.",
+  "es": "El registro dice qué cambió y quién lo cambió. Las ediciones en Confluence, con su autor; los commits del código que dejan una página desfasada; y las peticiones del equipo, donde la IA elige qué página tocar y explica por qué."
+ },
+ "scene-obsidian": {
+  "en": "And with a single command, the whole MIND space becomes an Obsidian vault: one note per page, the same tree, the links and the images.",
+  "es": "Y con un solo comando, el espacio entero de MIND pasa a un vault de Obsidian: una nota por página, el mismo árbol, los enlaces y las imágenes."
+ },
+ "scene-cierre": {
+  "en": "Everything runs on your machine, on Linux or Windows. You choose the AI, and you approve every change.",
+  "es": "Todo corre en tu máquina, en Linux o en Windows. Tú eliges la IA, y tú apruebas cada cambio."
+ }
 }

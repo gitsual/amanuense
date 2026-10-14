@@ -37,10 +37,11 @@ They do not decide what the text says. They keep it straight, and they note who 
 
 ---
 
-https://github.com/user-attachments/assets/6e89da5c-3f9d-4384-8f5f-3160effc1a8e
+<p align="center"><a href="assets/video/demo-en.mp4"><img src="assets/video/demo.gif" alt="The demo at double speed: the report, the change view with unsourced data flagged, the paste-ready page, the change log and the Obsidian vault" width="800"></a></p>
 
-<div align="center"><sub>Narrated demo (Spanish, 85 s). Made-up space, people and repo; the AI answers are scripted
-so the take is reproducible. Rebuild it with <code>scripts/render-assets.sh demo</code>.</sub></div>
+<div align="center"><sub>Click for the narrated demo: <a href="assets/video/demo-en.mp4">English</a> (89 s) ·
+<a href="assets/video/demo-es.mp4">Spanish</a> (85 s). Made-up space, people and repo; the AI answers are scripted
+so the take is reproducible. Rebuild it with <code>scripts/render-assets.sh demo [es]</code>.</sub></div>
 
 <p align="center"><a href="assets/linkedin/amanuense-carousel-en.pdf"><img src="assets/linkedin/preview.png" alt="Four slides of the carousel: the AI made up a number, every change line by line, unsourced data gets flagged, you approve and you paste" width="900"></a></p>
 

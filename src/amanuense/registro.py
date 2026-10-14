@@ -385,15 +385,15 @@ def _label(prefix: str, value: str) -> str:
 def _detail(e: dict) -> str:
     esc, n, t = html.escape, i18n.name, i18n.t
     if e["kind"] == "confluence":
-        msg = f"<p>«{esc(e['message'])}»</p>" if e.get("message") else ""
+        msg = f"<p>{t('quote', text=esc(e['message']))}</p>" if e.get("message") else ""
         return f"{esc(_label('change', e['change']))}{msg}<pre>{esc(e['what'])}</pre>"
     if e["kind"] == "codigo":
         pages = (f"<p><b>{t('review')}</b> {esc(', '.join(e['pages']))}</p>" if e.get("pages") else "")
         return f"{esc(e['repo'])}: {esc(e['what'])}<br><small>{esc(', '.join(e['files'][:6]))}</small>{pages}"
     if e["kind"] == "peticion":
         if not e.get("page"):
-            return f"«{esc(e['request'])}»<p>{t('no_page')}</p>"
-        return (f"«{esc(e['request'])}»<p><b>{t('what')}</b> {esc(e['cambio'])}<br><b>{t('why')}</b> "
+            return f"{t('quote', text=esc(e['request']))}<p>{t('no_page')}</p>"
+        return (f"{t('quote', text=esc(e['request']))}<p><b>{t('what')}</b> {esc(e['cambio'])}<br><b>{t('why')}</b> "
                 f"{esc(e['motivo'])}</p><a href=\"{esc(e['task'])}/{n('task')}\">{n('task')}</a>")
     return f'{esc(e["what"])} · <a href="{esc(e["task"])}/{n("changes")}">{n("changes")}</a>'
 

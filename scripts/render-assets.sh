@@ -4,7 +4,7 @@
 #
 #   scripts/render-assets.sh            # everything
 #   scripts/render-assets.sh logos      # only the logos
-#   scripts/render-assets.sh demo       # the demo video (needs tramoya, see demo/)
+#   scripts/render-assets.sh demo [es]  # the demo video, English by default (needs tramoya, see demo/)
 #
 # The mark is assets/brand/emblem-flux.png, generated with Flux on a local
 # ComfyUI by scripts/emblem-comfyui.py from the palette's own colours; the
@@ -53,16 +53,18 @@ logos() {
   rm -f "$ring" "$medallion" "$mask"
 }
 
-demo() {
-  echo "-- demo"
-  local py=${PLAYWRIGHT_PYTHON:-python3} tramoya=${TRAMOYA:-tramoya} out=demo/out
-  python3 demo/build.py
-  "$tramoya" tts --script demo/script.json --lang es --out-dir "$out/voices/es"
-  "$py" demo/record.py
+demo() {  # [en|es], default en; the English take is also the README preview
+  local lang=${1:-en}
+  echo "-- demo ($lang)"
+  local py=${PLAYWRIGHT_PYTHON:-python3} tramoya=${TRAMOYA:-tramoya} out=demo/out/$lang
+  python3 demo/build.py "$lang"
+  "$tramoya" tts --script demo/script.json --lang "$lang" --out-dir "$out/voices"
+  "$py" demo/record.py "$lang"
   "$tramoya" assemble --video "$out/take.webm" --marks "$out/marks.json" \
-    --voice-dir "$out/voices/es" --out "$out/demo.mp4" --lang es
+    --voice-dir "$out/voices" --out "$out/demo.mp4" --lang "$lang"
   mkdir -p assets/video
-  cp "$out/demo.mp4" assets/video/demo-es.mp4
+  cp "$out/demo.mp4" "assets/video/demo-$lang.mp4"
+  [[ $lang == en ]] || return 0
   # Silent preview for the README: the take at double speed, small palette.
   ffmpeg -y -loglevel error -i "$out/take.webm" -vf \
     "setpts=0.5*PTS,fps=6,scale=800:-1:flags=lanczos,split[a][b];[a]palettegen=max_colors=96[p];[b][p]paletteuse=dither=bayer" \
@@ -71,7 +73,7 @@ demo() {
 
 case $what in
   logos) logos ;;
-  demo) demo ;;
-  all) logos; demo ;;
+  demo) demo "${2:-en}" ;;
+  all) logos; demo en; demo es ;;
   *) echo "unknown target: $what" >&2; exit 2 ;;
 esac

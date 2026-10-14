@@ -224,6 +224,7 @@ la IA dice qué página tocar, qué cambiar y por qué, y prepara su tarea.
     "review": {"en": "Review:", "es": "Revisar:"},
     "no_page": {"en": "The AI found no page: assign it by hand.", "es": "La IA no encontró página: asígnala a mano."},
     "what": {"en": "What:", "es": "Qué:"},
+    "quote": {"en": "“{text}”", "es": "«{text}»"},
     "why": {"en": "Why:", "es": "Por qué:"},
     "proposal_ready": {"en": "proposal ready for review", "es": "propuesta lista para revisar"},
     "route_prompt": {

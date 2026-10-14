@@ -3,10 +3,10 @@
 
 Needs Playwright (with Chromium) and Obsidian. Obsidian runs headless on its own
 profile, so the recording never touches your desktop or your vaults. Writes
-demo/out/take.webm and demo/out/marks.json, ready for `tramoya assemble`. If the
-voices are already in demo/out/voices/es, each scene lasts as long as its narration.
+demo/out/<lang>/take.webm and marks.json, ready for `tramoya assemble`. If the
+voices are already in demo/out/<lang>/voices, each scene lasts as long as its narration.
 
-    python demo/build.py && python demo/record.py
+    python demo/build.py en && python demo/record.py en
 """
 from __future__ import annotations
 
@@ -14,16 +14,33 @@ import base64
 import json
 import shutil
 import subprocess
+import sys
 import time
 from pathlib import Path
 
 from playwright.sync_api import sync_playwright
 
 HERE = Path(__file__).resolve().parent
-OUT = HERE / "out"
-SALIDA = OUT / "taller" / "salida"
+sys.path.insert(0, str(HERE.parent / "src"))
+
+from amanuense import i18n  # noqa: E402
+
+LANG = sys.argv[1] if len(sys.argv) > 1 else "en"
+i18n.use(LANG)
+OUT = HERE / "out" / LANG
+WORKSHOP_OUT = OUT / "workshop" / i18n.name("out")
 FRAMES = OUT / "frames"
-VOICES = OUT / "voices" / "es"
+VOICES = OUT / "voices"
+CARDS = {
+    "en": ("From MIND to Obsidian, without losing who changed what",
+           "All on your machine · you approve every change"),
+    "es": ("De MIND a Obsidian, sin perder quién cambió qué",
+           "Todo en tu máquina · tú apruebas cada cambio"),
+}[LANG]
+VAULT_PAGES = {
+    "en": ("Route Planner contracts", "Route Planner deployment"),
+    "es": ("Contratos de Route Planner", "Despliegue de Route Planner"),
+}[LANG]
 FPS = 10
 SIZE = {"width": 1280, "height": 720}
 OBSIDIAN = ["electron43", "/usr/lib/obsidian/app.asar"]
@@ -89,33 +106,34 @@ def workshop(take: Take, browser) -> None:
     logo = HERE.parent / "assets" / "logo-dark.png"
 
     take.scene("intro", "start")
-    page.set_content(card(logo, "De MIND a Obsidian, sin perder quién cambió qué"))
+    page.set_content(card(logo, CARDS[0]))
     take.hold(page, 4)
     take.end(page, "intro")
 
     take.scene("informe", "start")
-    open_page(page, SALIDA / "index.html")
+    open_page(page, WORKSHOP_OUT / "index.html")
     take.hold(page, 3)
     take.scroll(page, 380)
     take.scroll(page, 380)
     take.hold(page, 1)
     take.end(page, "informe")
 
-    task = SALIDA / "tareas" / "01-actualizar-despliegue-de-route-planner"
+    n = i18n.name
+    task = next((WORKSHOP_OUT / n("tasks")).glob(f"01-{n('verb_update')}-*"))
     take.scene("cambios", "start")
-    open_page(page, task / "CAMBIOS.html", 1.3)
+    open_page(page, task / n("changes"), 1.3)
     take.hold(page, 3)
     take.scroll(page, 360)
     take.hold(page, 1)
     take.end(page, "cambios")
 
     take.scene("pegar", "start")
-    open_page(page, task / "PARA-CONFLUENCE.html")
+    open_page(page, task / n("paste"))
     take.hold(page, 4)
     take.end(page, "pegar")
 
     take.scene("registro", "start")
-    open_page(page, SALIDA / "registro.html", 1.25)
+    open_page(page, WORKSHOP_OUT / n("log_html"), 1.25)
     take.hold(page, 3)
     take.scroll(page, 360)
     take.scroll(page, 360)
@@ -143,9 +161,9 @@ def obsidian(take: Take, p, vault: Path) -> None:
         take.hold(page, 3)
         page.evaluate("app.workspace.openLinkText('MIND/Route Planner/_index', '', false)")
         take.hold(page, 3)
-        page.evaluate("app.workspace.openLinkText('MIND/Route Planner/Contratos de Route Planner/_index', '', false)")
+        page.evaluate(f"app.workspace.openLinkText('MIND/Route Planner/{VAULT_PAGES[0]}/_index', '', false)")
         take.hold(page, 3)
-        page.evaluate("app.workspace.openLinkText('MIND/Route Planner/Despliegue de Route Planner', '', false)")
+        page.evaluate(f"app.workspace.openLinkText('MIND/Route Planner/{VAULT_PAGES[1]}', '', false)")
         time.sleep(1)
         page.evaluate(REVEAL)
         time.sleep(0.5)
@@ -165,7 +183,7 @@ def main() -> None:
         obsidian(take, p, OUT / "vault")
         page = browser.new_page(viewport=SIZE)
         take.scene("cierre", "start")
-        page.set_content(card(HERE.parent / "assets" / "logo-dark.png", "Todo en tu máquina · tú apruebas cada cambio"))
+        page.set_content(card(HERE.parent / "assets" / "logo-dark.png", CARDS[1]))
         take.hold(page, 4)
         take.end(page, "cierre")
         browser.close()
