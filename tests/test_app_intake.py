@@ -216,3 +216,23 @@ def test_a_dropped_pile_ends_as_proposals_against_live_confluence(stage):
     # the cached snapshot carries the space, never the token
     cached = (ws / "output" / "confluence-live.json").read_text(encoding="utf-8")
     assert fakes.TOKEN not in cached and "⟦Confluence macro: jira (key=SA-1)⟧" in cached
+
+
+def test_adding_documentation_does_not_wait_for_the_repos(bare):
+    """Dropping files only compares them with Confluence: fetching every repo first made it take
+    minutes without VPN. Looking for changes still fetches them."""
+    ws, server = bare
+    gone = (ws.parent / "nowhere" / "tracks.git").as_uri()
+    (ws / "repos.txt").write_text(f"{gone}\n", encoding="utf-8")
+    data = b"# Night Service\n\nNight trams run from 00:30 to 05:00.\n"
+    plan = _call(server, "POST", "/api/intake/plan", {"files": [
+        {"path": "pile/night.md", "size": len(data), "sha256": hashlib.sha256(data).hexdigest()}]})[1]
+    assert plan["items"][0]["status"] == "use"
+    batch = _call(server, "POST", "/api/intake/start", {})[1]["batch"]
+    assert _upload(server, batch, "pile/night.md", data)[0] == 200
+    assert _call(server, "POST", "/api/job", {"name": "intake", "batch": batch})[0] == 200
+    job = _wait(server)
+    assert job["error"] == "" and not [w for w in job["result"]["warnings"] if "tracks" in w]
+    assert not (ws / "repos" / "tracks").exists()
+    assert _call(server, "POST", "/api/job", {"name": "run"})[0] == 200
+    assert [w for w in _wait(server)["result"]["warnings"] if gone in w]

@@ -198,11 +198,13 @@ def _handler(root: Path, token: str, job: Job, port_box: dict):
     def compare(batch: str = ""):
         if batch:
             intake.batch_dir(root, batch)  # an unknown batch is refused before the job starts
+        # Dropped files are compared with what was fetched last: fetching every repo first
+        # takes minutes without VPN. "Look for changes" still fetches them.
 
         def work() -> dict:
             source = _source(root, job)
             result = kit.run_workspace(root, None, None, settings.ai_client(), history(), source=source,
-                                       progress=job.progress)
+                                       progress=job.progress, sync_repos=not batch)
             out = _summary(result)
             out["source"] = result.get("source") or {}
             if batch:

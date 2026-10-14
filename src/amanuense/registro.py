@@ -543,12 +543,13 @@ def _user() -> str:
 def update_log(root: Path, exports: list[Path], pages: list[Page], ready: dict[str, kit.Task],
                history: ConfluenceHistory | None = None, router: Ai | None = None,
                template=None, bible: str = "", run=subprocess.run, ai: Ai | None = None,
-               created: str | None = None, source: str = "export") -> dict:
+               created: str | None = None, source: str = "export", sync_repos: bool = True) -> dict:
     """Adds this run's changes to the log; returns {"entries", "request_tasks", "errors"}.
 
     `created` is the baseline of `pages` (a live read's fetch time; by default, the export's
     date). Pages are only diffed against a snapshot from the same `source`: a live read and a
-    Word export format the same page differently."""
+    Word export format the same page differently. Without `sync_repos`, the repos are read as
+    last fetched and the ones never cloned are skipped."""
     n = i18n.name
     out = root / n("out")
     out.mkdir(parents=True, exist_ok=True)
@@ -589,8 +590,11 @@ def update_log(root: Path, exports: list[Path], pages: list[Page], ready: dict[s
     since = snap["created"] if snap else (datetime.now(timezone.utc) - timedelta(days=DEFAULT_LOOKBACK_DAYS)).isoformat()
     fresh: list[dict] = []
     for spec in read_repos(root):
+        if not sync_repos and not spec.path.is_dir():
+            continue
         try:
-            sync_repo(spec, run)
+            if sync_repos:
+                sync_repo(spec, run)
         except Exception as exc:  # offline: keep reading what was fetched before
             errors.append(i18n.t("err_sync", repo=spec.url, error=exc))
         try:

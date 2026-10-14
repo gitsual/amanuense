@@ -501,7 +501,8 @@ def _local_text(local_root: Path, task: Task) -> str:
 
 
 def run_workspace(root: Path, embed=None, judge=None, ai: Ai | None = None, history=None,
-                  router: Ai | None = None, lang: str | None = None, source=None, progress=None) -> dict:
+                  router: Ai | None = None, lang: str | None = None, source=None, progress=None,
+                  sync_repos: bool = True) -> dict:
     """`history` gives Confluence authors to the change log; `router` (default: `ai`) routes requests.
     `source` (space.Source) brings the pages read live from Confluence; without it, or when it
     falls back, the Word export in the workshop is read. `progress(stage, done, total)` hears
@@ -569,7 +570,8 @@ def run_workspace(root: Path, embed=None, judge=None, ai: Ai | None = None, hist
     tell("log", 0, 0)
     done = {f"{n('tasks')}/{t.slug}": t for t in tasks if t.slug in ready}
     changes = log.update_log(root, exports, pages, done, history, router or ai, template, bible, ai=ai,
-                             created=source.created if live else None, source=source.kind if live else "export")
+                             created=source.created if live else None, source=source.kind if live else "export",
+                             sync_repos=sync_repos)
 
     index = out / "index.html"
     index.write_text(_index(out, rows, tasks, ready, level, sizes, errors), encoding="utf-8")
