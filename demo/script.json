@@ -1,38 +1,62 @@
 {
  "scene-intro": {
-  "en": "Amanuense works with MIND, the Confluence of the Atlassian suite. It takes the Word export of a space, compares it with your drafts and your code, and turns it into Obsidian. Everything you see is a made-up example space.",
-  "es": "Amanuense trabaja con MIND, el Confluence de la suite Atlassian. Toma el export de Word de un espacio, lo compara con tus borradores y con tu código, y lo pasa a Obsidian. Todo lo que ves es un espacio de ejemplo inventado."
+  "en": "This is amanuense. It keeps a team's Confluence in step with its drafts and its code. Everything you are about to see is a made-up team, Quillmere Trams, running against a fake Confluence on this machine.",
+  "es": "Esto es amanuense. Mantiene el Confluence de un equipo al día con sus borradores y con su código. Todo lo que vas a ver es un equipo inventado, Quillmere Trams, contra un Confluence de mentira en esta misma máquina."
  },
- "scene-informe": {
-  "en": "Every time you run it, it writes a report: which pages to update, which are new, which are duplicates and which only exist in Confluence. And it prepares one task per page, ready for any AI.",
-  "es": "Cada vez que lo ejecutas, escribe un informe: qué páginas hay que actualizar, cuáles son nuevas, cuáles están duplicadas y cuáles sólo existen en Confluence. Y prepara una tarea por página, lista para cualquier IA."
+ "scene-problem": {
+  "en": "Documentation drifts. The wiki says alerts are kept for twenty-four hours. Yesterday Priya merged a commit that keeps them for seventy-two. And Samir asked in the chat for alerts to reach the boards in thirty seconds. Nobody updated the page.",
+  "es": "La documentación se queda atrás. La wiki dice que los avisos se guardan veinticuatro horas. Ayer Priya fusionó un commit que los guarda setenta y dos. Y Samir pidió en el chat que los avisos lleguen a los paneles en treinta segundos. Nadie tocó la página."
  },
- "scene-cambios": {
-  "en": "When the AI returns its proposal, you see the change line by line against what Confluence has today. You decide. If the proposal brings a figure that was in none of its sources, the workshop flags it before you approve.",
-  "es": "Cuando la IA devuelve su propuesta, ves el cambio línea a línea contra lo que hay hoy en Confluence. Tú decides. Si la propuesta trae un dato que no estaba en ninguna fuente, el taller lo marca antes de que lo apruebes."
+ "scene-report": {
+  "en": "Each run compares the Word export of the space with the team's drafts, its repositories and its requests. The report says which pages to update, which are new, which are duplicates or contradict each other, and prepares one task per page.",
+  "es": "Cada pasada compara el export de Word del espacio con los borradores del equipo, sus repositorios y sus peticiones. El informe dice qué páginas actualizar, cuáles son nuevas, cuáles están duplicadas o se contradicen, y prepara una tarea por página."
  },
- "scene-revisar": {
-  "en": "Then you review it all in one place. The app lists every proposed page, and also the tasks the triage set aside, with the reason. Each page shows its changes against MIND and the notes to look at.",
-  "es": "Después lo revisas todo en un solo sitio. La app lista cada página propuesta, y también las tareas que el triaje apartó, con su motivo. Cada página muestra sus cambios contra MIND y los avisos que revisar."
+ "scene-unsourced": {
+  "en": "Then an AI writes every proposal. You pick it: Claude, Codex, Gemini, Copilot, or a local model. A figure that comes from none of the sources is flagged, like this twenty, before anyone approves it.",
+  "es": "Después una IA escribe cada propuesta. La eliges tú: Claude, Codex, Gemini, Copilot o un modelo local. Un dato que no sale de ninguna fuente queda marcado, como este veinte, antes de que nadie lo apruebe."
  },
- "scene-decidir": {
-  "en": "When the AI finds a contradiction, it does not guess: it leaves a conflict. You decide it in place, and only then can you approve.",
-  "es": "Cuando la IA encuentra una contradicción, no se la inventa: deja un conflicto. Lo decides ahí mismo, y sólo entonces puedes aprobar."
+ "scene-inbox": {
+  "en": "Clara reviews it all in one inbox, in her browser and on her machine. Commits the AI judged as noise are set aside, not lost. Each page shows the change side by side with what Confluence has today.",
+  "es": "Clara lo revisa todo en una bandeja, en su navegador y en su máquina. Los commits que la IA juzgó como ruido quedan apartados, no perdidos. Cada página muestra el cambio al lado de lo que hay hoy en Confluence."
  },
- "scene-publicar": {
-  "en": "Then you publish. By hand, copying and pasting, or with a personal token, straight through the Confluence API. It checks first that MIND has not changed since your export and that nothing would be lost, keeps a backup, and can undo.",
-  "es": "Y publicas. A mano, copiando y pegando, o con un token personal, directamente por la API de Confluence. Antes comprueba que MIND no ha cambiado desde tu export y que no se pierde nada, guarda una copia y puede deshacer."
+ "scene-why": {
+  "en": "Why did the AI change this page? Because of Priya's commit. The Why tab lists each change with its reason, and the exact commits it was given.",
+  "es": "¿Por qué la IA cambió esta página? Por el commit de Priya. La pestaña Por qué lista cada cambio con su motivo, y los commits exactos que recibió."
  },
- "scene-registro": {
-  "en": "The log says what changed and who changed it. Edits in Confluence, with their author; code commits that leave a page out of date; and requests from the team, where the AI picks the page to touch and explains why.",
-  "es": "El registro dice qué cambió y quién lo cambió. Las ediciones en Confluence, con su autor; los commits del código que dejan una página desfasada; y las peticiones del equipo, donde la IA elige qué página tocar y explica por qué."
+ "scene-decide": {
+  "en": "Samir's request clashes with the page, which says the feed is polled every sixty seconds. The AI does not guess: it marks a conflict, and approval stays blocked until a person decides.",
+  "es": "La petición de Samir choca con la página, que dice que el canal se consulta cada sesenta segundos. La IA no adivina: marca un conflicto, y no se puede aprobar hasta que una persona decide."
+ },
+ "scene-publish": {
+  "en": "Publishing checks first: the page has not changed since the export, and nothing would be lost. A copy is saved, the page is written, read back and verified.",
+  "es": "Antes de publicar comprueba que la página no cambió desde el export y que no se perdería nada. Guarda una copia, escribe la página, la vuelve a leer y la verifica."
+ },
+ "scene-undo": {
+  "en": "Changed your mind? Undo puts the saved copy back as a new version.",
+  "es": "¿Te arrepentiste? Deshacer vuelve a poner la copia guardada como una versión nueva."
+ },
+ "scene-log": {
+  "en": "Every run and every decision lands in the change log: who changed what in Confluence, which commits moved which pages, who approved, published or undid each one.",
+  "es": "Cada pasada y cada decisión quedan en el registro de cambios: quién cambió qué en Confluence, qué commits movieron qué páginas, quién aprobó, publicó o deshizo cada una."
+ },
+ "scene-radiator": {
+  "en": "The capability radiator reads every branch of every repository, compares the versions with the package registry, and shows which pages cite each package.",
+  "es": "El radiador de capacidades lee todas las ramas de cada repositorio, compara las versiones con el registro de paquetes y muestra qué páginas citan cada paquete."
+ },
+ "scene-deliver": {
+  "en": "When someone else publishes, deliver packs every proposal into one folder or zip, with a README that says where each page came from and what to look at twice.",
+  "es": "Cuando publica otra persona, la entrega empaqueta todas las propuestas en una carpeta o un zip, con un README que dice de dónde sale cada página y qué mirar dos veces."
+ },
+ "scene-radar": {
+  "en": "And none of it needs anyone at the keyboard. The radar script runs a pass every morning from cron or the Windows Task Scheduler, and commits a snapshot to the team's repository only when something changed.",
+  "es": "Y nada de esto necesita a nadie al teclado. El script del radar hace una pasada cada mañana desde cron o el Programador de tareas de Windows, y guarda una instantánea en el repositorio del equipo sólo si algo cambió."
  },
  "scene-obsidian": {
-  "en": "And with a single command, the whole MIND space becomes an Obsidian vault: one note per page, the same tree, the links and the images.",
-  "es": "Y con un solo comando, el espacio entero de MIND pasa a un vault de Obsidian: una nota por página, el mismo árbol, los enlaces y las imágenes."
+  "en": "The same export also becomes an Obsidian vault, one note per page, linked as in Confluence.",
+  "es": "El mismo export se convierte además en una bóveda de Obsidian, una nota por página, enlazadas como en Confluence."
  },
- "scene-cierre": {
-  "en": "Everything runs on your machine, on Linux or Windows. You choose the AI, and you approve every change.",
-  "es": "Todo corre en tu máquina, en Linux o en Windows. Tú eliges la IA, y tú apruebas cada cambio."
+ "scene-close": {
+  "en": "Everything runs on your machine, you choose the AI, and a person approves every change. Amanuense is open source.",
+  "es": "Todo corre en tu máquina, tú eliges la IA y una persona aprueba cada cambio. Amanuense es software libre."
  }
 }
