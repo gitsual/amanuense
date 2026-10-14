@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # amanuense.sh — documentation workshop (see docs/guide.md).
-#   First run creates the workshop folder; next runs analyse it and open output/index.html.
-#   ./amanuense.sh [extra args, e.g. --ai-cli claude]
+#   No arguments: opens the review app (the first time it also creates the workshop folder).
+#   ./amanuense.sh [run args, e.g. --ai-cli claude]   (look for changes, then the app)
 #   ./amanuense.sh obsidian EXPORT.docx VAULT/MIND   (export to an Obsidian vault)
 #   ./amanuense.sh deliver --zip                     (delivery folder + zip)
 #   ./amanuense.sh --lang es        (Spanish workshop; default English, an existing workshop keeps its own)
@@ -28,6 +28,9 @@ for ((i = 1; i <= $#; i++)); do
     --lang=*) LANG_ARGS=("${!i}") ;;
   esac
 done
+if [[ "${1:-}" == review ]]; then shift; exec "$PY" -m amanuense review "$WS" "$@"; fi
+if [[ $# -eq ${#LANG_ARGS[@]} ]]; then exec "$PY" -m amanuense review "$WS" "$@"; fi
+[[ "${1:-}" == radiator ]] && exec "$PY" -m amanuense radiator "$WS" "${@:2}"
 if [[ ! -d "$WS/1-confluence-export" && ! -d "$WS/1-export-confluence" ]]; then
   GUIDE="$("$PY" -m amanuense "${LANG_ARGS[@]}" init "$WS")"
   echo "Workshop created: $WS — fill its folders (see $GUIDE) and run this again."

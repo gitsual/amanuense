@@ -218,6 +218,19 @@ def _prompt(task: Task, local_text: str, template: Page | None, bible: str) -> s
 
 # ── Markdown → HTML (enough for a clean paste into Confluence) ────────────────
 
+SAFE_SCHEMES = ("http", "https", "mailto")
+
+
+def _safe_url(url: str) -> bool:
+    """Relative links and http(s)/mailto only: no javascript: or data: in a page someone opens."""
+    scheme = re.match(r"^([a-zA-Z][a-zA-Z0-9+.-]*):", url)
+    return not scheme or scheme.group(1).lower() in SAFE_SCHEMES
+
+
+def _attr(value: str) -> str:
+    return value.replace('"', "&quot;")  # the text is escaped already, but not its quotes
+
+
 def _inline(text: str) -> str:
     codes: list[str] = []
 
@@ -227,8 +240,12 @@ def _inline(text: str) -> str:
 
     text = re.sub(r"`([^`]+)`", keep, text)
     text = html.escape(text, quote=False)
-    text = re.sub(r"!\[([^\]]*)\]\(([^)\s]+)\)", r'<img alt="\1" src="\2">', text)
-    text = re.sub(r"\[([^\]]+)\]\(([^)\s]+)\)", r'<a href="\2">\1</a>', text)
+    text = re.sub(r"!\[([^\]]*)\]\(([^)\s]+)\)",
+                  lambda m: f'<img alt="{_attr(m.group(1))}" src="{_attr(m.group(2))}">' if _safe_url(m.group(2))
+                  else m.group(1), text)
+    text = re.sub(r"\[([^\]]+)\]\(([^)\s]+)\)",
+                  lambda m: f'<a href="{_attr(m.group(2))}">{m.group(1)}</a>' if _safe_url(m.group(2))
+                  else m.group(1), text)
     text = re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", text)
     text = re.sub(r"(?<!\*)\*(?!\s)(.+?)(?<!\s)\*(?!\*)", r"<em>\1</em>", text)
     text = re.sub(r"&lt;br\s*/?&gt;", "<br>", text)  # line breaks inside table cells
@@ -515,6 +532,7 @@ def deliver_workspace(root: Path, make_zip: bool = False, today: str | None = No
     """Gathers every ready proposal into output/delivery-DATE/: one folder per page and a README."""
     from datetime import date
     from . import registro as log
+    from . import revision
     i18n.choose(root, lang)
     n, t = i18n.name, i18n.t
     out = root / n("out")
@@ -526,29 +544,22 @@ def deliver_workspace(root: Path, make_zip: bool = False, today: str | None = No
         path = out / rel / log.TRIAGE_FILE
         return json.loads(path.read_text(encoding="utf-8")) if path.is_file() else {}
 
-    def rank(rel: str) -> int:  # the proposal that carries the most: chained > request > code > page
-        if verdict(rel).get("categoria") == "encadenar":
-            return 0
-        return 1 if rel in requests else 2 if rel in code else 3
-
-    by_page: dict[str, list[str]] = {}
-    for e in entries:
-        if e["kind"] == "taller" and (out / e["task"] / n("result")).is_file():
-            title = code.get(e["task"]) or e["page"]  # old logs may carry a mismatched title
-            by_page.setdefault(title, []).append(e["task"])
     folder = out / f'{n("delivery")}-{today or date.today().isoformat()}'
     if folder.exists():
         shutil.rmtree(folder)
     lines = [t("deliver_title", date=folder.name.split("-", 1)[1]), ""]
     sections: dict[str, list[str]] = {"pages": [], "new": []}
     notes: list[str] = []
-    for title, rels in sorted(by_page.items()):
-        rel = min(dict.fromkeys(rels), key=rank)
+    discarded = {p["title"] for p in revision.proposals(root) if p["status"] == "descartada"}
+    for title, rels in revision.candidates(root).items():
+        if title in discarded:
+            continue
+        rel = rels[0]
         src = out / rel
         new = not (src / n("current")).is_file()
         dest = folder / n("new_dir" if new else "pages_dir") / UNSAFE_NAME.sub("_", title)
         dest.mkdir(parents=True)
-        for key in ("result", "paste", "changes"):
+        for key in ("result", "paste", "changes", "current"):
             if (src / n(key)).is_file():
                 shutil.copy2(src / n(key), dest / n(key))
         found = notices((src / n("result")).read_text(encoding="utf-8"))
@@ -761,6 +772,9 @@ def main(argv: list[str] | None = None) -> None:
     radiator = sub.add_parser("radiator", help=t("cli_radiator"), parents=[after])
     radiator.add_argument("root", type=Path)
     radiator.add_argument("--no-open", action="store_true", help=t("cli_no_open"))
+    review = sub.add_parser("review", help=t("cli_review"), parents=[after])
+    review.add_argument("root", type=Path)
+    review.add_argument("--no-open", action="store_true", help=t("cli_no_open"))
     deliver = sub.add_parser("deliver", help=t("cli_deliver"), parents=[after])
     deliver.add_argument("root", type=Path)
     deliver.add_argument("--zip", action="store_true", help=t("cli_zip"))
@@ -794,6 +808,10 @@ def main(argv: list[str] | None = None) -> None:
         if not a.no_open:
             webbrowser.open(index.resolve().as_uri())
         return
+    if a.cmd == "review":
+        from .app import run_app
+        run_app(a.root, not a.no_open, a.lang)
+        return
     if a.cmd == "deliver":
         folder = deliver_workspace(a.root, a.zip, lang=a.lang)
         print(folder)
@@ -823,8 +841,9 @@ def main(argv: list[str] | None = None) -> None:
         print(i18n.t("cli_warning"), warning)
     print(i18n.t("cli_ready", ready=len(summary["ready"]), total=len(summary["tasks"])))
     print(summary["index"])
-    if not a.no_open:
-        webbrowser.open(summary["index"].resolve().as_uri())
+    if not a.no_open:  # straight into the review app, where every proposal is decided
+        from .app import run_app
+        run_app(a.root, True, a.lang)
 
 
 if __name__ == "__main__":

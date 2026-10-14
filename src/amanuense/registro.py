@@ -71,6 +71,13 @@ def _id(*parts: str) -> str:
 
 # ── Confluence: who changed a page ─────────────────────────────────────────────
 
+def confluence_auth(token: str, user: str = "") -> str:
+    """Data Center: personal access token as Bearer. Cloud: e-mail + API token as Basic."""
+    if user:
+        return "Basic " + base64.b64encode(f"{user}:{token}".encode()).decode()
+    return "Bearer " + token
+
+
 class ConfluenceHistory:
     """Version history through the REST API.
 
@@ -83,10 +90,7 @@ class ConfluenceHistory:
         if ".atlassian.net" in base and not base.endswith("/wiki"):
             base += "/wiki"
         self.api, self.space, self.opener, self.timeout = base + "/rest/api", space, opener, timeout
-        if user:
-            self.auth = "Basic " + base64.b64encode(f"{user}:{token}".encode()).decode()
-        else:
-            self.auth = "Bearer " + token
+        self.auth = confluence_auth(token, user)
 
     def _get(self, path: str, **query) -> dict:
         url = f"{self.api}{path}?{urllib.parse.urlencode(query)}"

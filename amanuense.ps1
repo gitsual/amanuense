@@ -1,9 +1,9 @@
 # amanuense.ps1 — documentation workshop (see docs\guide.md).
 #
-#   First run: creates the workshop folder and opens it.
-#   Next runs: analyses it and opens output\index.html.
+#   Double-click (no arguments): opens the review app; the first time it also creates the
+#   workshop folder. Everything else (looking for changes, publishing) is done from the app.
 #
-#   powershell -ExecutionPolicy Bypass -File .\amanuense.ps1 [extra args, e.g. --ai-cli copilot]
+#   powershell -ExecutionPolicy Bypass -File .\amanuense.ps1 [run args, e.g. --ai-cli copilot]
 #   powershell -ExecutionPolicy Bypass -File .\amanuense.ps1 obsidian EXPORT.docx VAULT\MIND
 #   powershell -ExecutionPolicy Bypass -File .\amanuense.ps1 deliver --zip   (delivery folder + zip)
 #
@@ -85,6 +85,14 @@ if ($Rest.Count -gt 0 -and $Rest[0] -eq "deliver") {
 if ($Rest.Count -gt 0 -and $Rest[0] -eq "obsidian") {
     & $pyExe @pyArgs -m amanuense @Rest
     if ($LASTEXITCODE -ne 0) { throw "amanuense obsidian failed" }
+    exit 0
+}
+$OnlyLang = ($Rest.Count -eq $LangArgs.Count)
+if ($Rest.Count -gt 0 -and $Rest[0] -eq "review") { $Rest = @($Rest | Select-Object -Skip 1); $OnlyLang = $true }
+if ($OnlyLang) {
+    # The review app: amanuense.bat (double-click) or amanuense.bat --lang es
+    & $pyExe @pyArgs -m amanuense review $Workspace @Rest
+    if ($LASTEXITCODE -ne 0) { throw "amanuense review failed" }
     exit 0
 }
 if (-not (Test-Path (Join-Path $Workspace "1-confluence-export")) -and

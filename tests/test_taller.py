@@ -479,7 +479,7 @@ def test_deliver_gathers_ready_pages_new_pages_and_a_readme(tmp_path):
 
     assert folder.name == "entrega-2026-10-14"
     page = folder / "paginas" / "Convenciones de nomenclatura"
-    assert {p.name for p in page.iterdir()} == {"RESULTADO.md", "PARA-CONFLUENCE.html", "CAMBIOS.html"}
+    assert {p.name for p in page.iterdir()} == {"RESULTADO.md", "PARA-CONFLUENCE.html", "CAMBIOS.html", "ACTUAL.md"}
     assert (folder / "nuevas" / "Capacidad de mapas" / "RESULTADO.md").is_file()
     readme = (folder / "LEEME.md").read_text(encoding="utf-8")
     assert "Convenciones de nomenclatura" in readme and "Capacidad de mapas" in readme
