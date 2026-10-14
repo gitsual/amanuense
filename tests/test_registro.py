@@ -143,6 +143,30 @@ def test_git_commits_lists_author_files_and_affected_pages(tmp_path):
     assert log.affected_pages(commits[0], pages) == ["Tabla de tracks"]
 
 
+def test_affected_pages_ignores_names_common_to_many_pages_and_repeated_titles():
+    commit = {"repo": "tracks", "files": ["README.md", "src/track_table.py"]}
+    generic = [(f"Equipo", "ver el README del repo") for _ in range(10)]
+    generic += [(f"Página {i}", "ver el README") for i in range(10)]
+    pages = _pages(("Tabla de tracks", "El componente vive en track_table.py"), *generic)
+    assert log.affected_pages(commit, pages) == ["Tabla de tracks"]
+
+
+def test_code_task_keeps_diffs_of_the_newest_commits_and_lists_the_rest(tmp_path):
+    class Done:
+        returncode, stdout = 0, "+" + "x" * (log.MAX_DIFF - 1)
+
+    page = _pages(("Platform", "texto"))[0]
+    fresh = [(log.RepoSpec(path=tmp_path, url="", refs=()),
+              {"repo": "base", "branch": "develop", "hash": f"{i:040d}", "by": "Ana",
+               "when": f"2026-10-{i + 1:02d}T00:00:00Z", "what": f"commit {i}", "pages": ["Platform"], "tasks": []})
+             for i in range(20)]
+    [rel] = log._code_tasks(tmp_path, fresh, [page], None, "", lambda *a, **k: Done())
+    local = (tmp_path / rel / log.i18n.name("local_copy")).read_text(encoding="utf-8")
+    assert len(local) < log.MAX_TASK_DIFF + 10 * log.MAX_DIFF
+    assert all(f"commit {i}" in local for i in range(20))
+    assert local.index("commit 19") < local.index("commit 0")
+
+
 def test_requests_without_ai_wait_for_a_page(tmp_path):
     reqs = log.read_requests("- Ana: el puerto de despliegue ahora es 8443\n# comentario\n")
     assert [(r["by"], r["text"]) for r in reqs] == [("Ana", "el puerto de despliegue ahora es 8443")]

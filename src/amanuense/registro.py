@@ -41,6 +41,7 @@ from .confluence import Page, _slug, normalize_title
 DEFAULT_LOOKBACK_DAYS = 90
 MAX_VERSIONS = 50
 MAX_DIFF = 6000  # characters of diff per commit in a code task
+MAX_TASK_DIFF = 40000  # characters of diff per code task; older commits go in by subject only
 
 # Workshop names and texts, kept as module attributes; they follow the current language.
 _NAMES = {"LOG_JSON": "log_json", "LOG_HTML": "log_html", "SNAPSHOT": "snapshot", "REPOS_FILE": "repos",
@@ -264,12 +265,27 @@ def affected_pages(commit: dict, pages: list[Page]) -> list[str]:
         name = Path(f).name.lower()
         if len(Path(name).stem) >= 5:
             names |= {name, Path(name).stem}
-    hits = []
-    for page in pages:
-        text = page.markdown.lower()
-        if any(re.search(rf"(?<![\w-]){re.escape(n)}(?![\w-])", text) for n in names):
-            hits.append(page.title)
-    return hits
+    # A name that many pages cite (README, package, LICENSE...) says nothing about which page is stale.
+    limit = max(3, len(pages) // 20)
+    hits: dict[str, None] = {}
+    for n in names:
+        titles = _citing(n, pages)
+        if len(titles) <= limit:
+            hits.update(dict.fromkeys(titles))
+    return list(dict.fromkeys(p.title for p in pages if p.title in hits))
+
+
+_CITES: dict[tuple[int, str], tuple[list[Page], list[str]]] = {}
+
+
+def _citing(name: str, pages: list[Page]) -> list[str]:
+    """Pages whose text names it as a whole word; cached per page list, as every commit asks again."""
+    key = (id(pages), name)
+    if key not in _CITES:
+        pattern = re.compile(rf"(?<![\w-]){re.escape(name)}(?![\w-])")
+        # Keeping the list alive stops another list from reusing its id.
+        _CITES[key] = (pages, [p.title for p in pages if pattern.search(p.markdown.lower())])
+    return _CITES[key][1]
 
 
 def read_repos(root: Path) -> list[RepoSpec]:
@@ -373,9 +389,7 @@ def _code_tasks(out: Path, fresh: list, pages: list[Page], template, bible: str,
         page = by_title[title]
         slug = f"{_slug(title)}-{_id('codigo', title, *(e['hash'] for _, e in hits))[:6]}"
         rel = f"{n('code_dir')}/{slug}"
-        commits = "\n".join(i18n.t("code_commit", repo=e["repo"], branch=e["branch"], sha=e["hash"][:10],
-                                   by=e["by"], subject=e["what"], diff=git_diff(spec.path, e["hash"], run))
-                            for spec, e in hits)
+        commits = _commit_digest(sorted(hits, key=lambda h: h[1]["when"], reverse=True), run)
         local = i18n.t("code_local", title=title, commits=commits)
         d = out / rel
         d.mkdir(parents=True, exist_ok=True)
@@ -389,11 +403,29 @@ def _code_tasks(out: Path, fresh: list, pages: list[Page], template, bible: str,
     return made
 
 
+def _commit_digest(hits: list, run) -> str:
+    """Newest commits with their diff while they fit in MAX_TASK_DIFF; the older ones as a list."""
+    parts, rest, budget = [], [], MAX_TASK_DIFF
+    for spec, e in hits:
+        diff = git_diff(spec.path, e["hash"], run) if budget > 0 else ""
+        if diff and len(diff) <= budget:
+            budget -= len(diff)
+            parts.append(i18n.t("code_commit", repo=e["repo"], branch=e["branch"], sha=e["hash"][:10],
+                                by=e["by"], subject=e["what"], diff=diff))
+        else:
+            budget = 0
+            rest.append(i18n.t("code_commit_line", repo=e["repo"], branch=e["branch"], sha=e["hash"][:10],
+                               by=e["by"], subject=e["what"]))
+    if rest:
+        parts.append(i18n.t("code_older", n=len(rest)) + "\n\n" + "\n".join(rest) + "\n")
+    return "\n".join(parts)
+
+
 # ── The log ───────────────────────────────────────────────────────────────────
 
 def _load(path: Path, default):
     try:
-        return json.loads(path.read_text(encoding="utf-8"))
+        return json.loads(path.read_text(encoding="utf-8-sig"))  # survives a Notepad edit
     except (FileNotFoundError, json.JSONDecodeError):
         return default
 

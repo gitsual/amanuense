@@ -43,10 +43,12 @@ function Find-Python {
         # The WindowsApps "python.exe" only opens the Microsoft Store.
         if ($cmd -and $cmd.Source -notlike "*\WindowsApps\*") { $candidates += ,@($cmd.Source) }
     }
-    $roots = @("$env:LOCALAPPDATA\Programs\Python", $env:ProgramFiles, ${env:ProgramFiles(x86)}, "C:\")
+    # Python.org installers use Python3NN; the Python Install Manager uses Python\pythoncore-3.NN-64.
+    $roots = @("$env:LOCALAPPDATA\Programs\Python", "$env:LOCALAPPDATA\Python", $env:ProgramFiles, ${env:ProgramFiles(x86)}, "C:\")
     foreach ($root in $roots) {
         if (-not $root -or -not (Test-Path $root)) { continue }
-        Get-ChildItem -Path $root -Directory -Filter "Python3*" -ErrorAction SilentlyContinue |
+        Get-ChildItem -Path $root -Directory -ErrorAction SilentlyContinue |
+            Where-Object { $_.Name -like "Python3*" -or $_.Name -like "pythoncore-3*" } |
             Sort-Object { [int]($_.Name -replace '\D', '') } -Descending |
             ForEach-Object { $exe = Join-Path $_.FullName "python.exe"; if (Test-Path $exe) { $candidates += ,@($exe) } }
     }
@@ -67,6 +69,12 @@ if (-not $found) {
 }
 $pyExe = $found[0]; $pyArgs = @($found | Select-Object -Skip 1)
 
+if ($Rest.Count -gt 0 -and $Rest[0] -eq "radiator") {
+    # Capability catalogue of the workshop: amanuense.bat radiator [--no-open]
+    & $pyExe @pyArgs -m amanuense radiator $Workspace @($Rest | Select-Object -Skip 1)
+    if ($LASTEXITCODE -ne 0) { throw "amanuense radiator failed" }
+    exit 0
+}
 if ($Rest.Count -gt 0 -and $Rest[0] -eq "obsidian") {
     & $pyExe @pyArgs -m amanuense @Rest
     if ($LASTEXITCODE -ne 0) { throw "amanuense obsidian failed" }

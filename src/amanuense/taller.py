@@ -586,6 +586,18 @@ def _lang_arg(argv: list[str]) -> str | None:
     return None
 
 
+def radiator_workspace(root: Path, lang: str | None = None) -> Path:
+    """The capability radiator of the workshop: repos.txt, its export pages and radiador.json."""
+    from . import radiador, registro
+    init_workspace(root, lang)
+    exports = _inputs(root / i18n.name("export"), ".docx")
+    level = best_page_level(exports, []) if exports else 1
+    pages = [p for e in exports for p in docx_to_pages(e, level)]
+    repos = [spec.path for spec in registro.read_repos(root) if spec.path.is_dir()]
+    catalog = radiador.build_catalog(repos, pages, radiador.load_config(root))
+    return radiador.write_radiator(root, catalog)
+
+
 def main(argv: list[str] | None = None) -> None:
     import sys
     argv = list(sys.argv[1:] if argv is None else argv)
@@ -604,6 +616,9 @@ def main(argv: list[str] | None = None) -> None:
     vault.add_argument("export", type=Path, help=t("cli_export"))
     vault.add_argument("dest", type=Path, help=t("cli_vault"))
     vault.add_argument("--force", action="store_true", help=t("cli_force"))
+    radiator = sub.add_parser("radiator", help=t("cli_radiator"), parents=[after])
+    radiator.add_argument("root", type=Path)
+    radiator.add_argument("--no-open", action="store_true", help=t("cli_no_open"))
     run = sub.add_parser("run", help=t("cli_run"), parents=[after])
     run.add_argument("root", type=Path)
     run.add_argument("--ai-url", default=os.environ.get("AMANUENSE_AI_URL", ""), help=t("cli_ai_url"))
@@ -626,6 +641,12 @@ def main(argv: list[str] | None = None) -> None:
         except (FileExistsError, FileNotFoundError) as e:
             raise SystemExit(f"✗ {e}") from None
         print(t("cli_vault_done", notes=done["notes"], media=done["media"], vault=done["vault"]))
+        return
+    if a.cmd == "radiator":
+        index = radiator_workspace(a.root, a.lang)
+        print(index)
+        if not a.no_open:
+            webbrowser.open(index.resolve().as_uri())
         return
     if a.cmd == "agents":
         src = a.src or Path(__file__).resolve().parent / "skeleton" / i18n.current()
