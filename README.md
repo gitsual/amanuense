@@ -172,6 +172,11 @@ land in `2-my-docs/intake-<date>/` and are compared with the **current** Conflue
 through the API when Confluence is configured (otherwise with the Word export); the app says which
 source it used. Files with no matching page are ranked as candidates for a new page.
 
+<p align="center"><a href="assets/video/intake-en.mp4"><img src="assets/video/intake.gif" alt="Adding documentation at double speed: a folder of 57 files dropped, what is used and set aside, the comparison with the live Confluence space, the results and one proposal approved and published" width="800"></a></p>
+
+<p align="center"><sub>Narrated demo: <a href="assets/video/intake-en.mp4">English</a> · <a href="assets/video/intake-es.mp4">Spanish</a> (about 90 s).
+Made up like the one above. Rebuild it with <code>scripts/render-assets.sh intake [es]</code>.</sub></p>
+
 **Publishing.** *By hand* always works: copy the formatted page, paste it into Confluence, mark it
 published. *Automatically*, with a Confluence address, space and personal token in **Settings**:
 
