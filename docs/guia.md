@@ -194,6 +194,28 @@ El token se queda en tu equipo y sólo se usa para leer el historial de versione
 En Confluence Cloud, añade también `AMANUENSE_CONFLUENCE_USER=tu-correo`. Si no hay
 red, el registro sigue funcionando sin autores y lo indica en sus avisos.
 
+## Configuración: qué se puede ajustar y dónde
+
+Todo es opcional. Los **Ajustes** de la app guardan la dirección de Confluence, el space, el
+usuario, el token y la IA en tu carpeta de usuario (`%APPDATA%\amanuense\settings.json` en
+Windows, `~/.config/amanuense/` en el resto), nunca en el taller; en Windows el token va cifrado
+con DPAPI. Una variable de entorno manda sobre los Ajustes: así los recibe una ejecución programada.
+
+| Variable | Qué | Ejemplo |
+|---|---|---|
+| `AMANUENSE_CONFLUENCE_URL` | Dirección base de Confluence | `https://confluence.example.com` |
+| `AMANUENSE_CONFLUENCE_SPACE` | Clave del space de las páginas | `DOCS` |
+| `AMANUENSE_CONFLUENCE_TOKEN` | Token personal (nunca lo subas al repo) | |
+| `AMANUENSE_CONFLUENCE_USER` | Correo de la cuenta, solo para Confluence Cloud | `ana@example.com` |
+| `AMANUENSE_AI_CLI` | Agente: `claude`, `codex`, `gemini`, `copilot` | `copilot` |
+| `AMANUENSE_AI_URL`, `AMANUENSE_AI_MODEL`, `AMANUENSE_AI_KEY` | IA compatible con OpenAI en lugar de un agente | `http://localhost:11434/v1` |
+| `AMANUENSE_USER` | Nombre que se anota en el registro | `ana.ruiz` |
+| `AMANUENSE_LANG` | Idioma del taller: `en` o `es` | `es` |
+| `AMANUENSE_CONFIG_DIR` | Otra carpeta para los Ajustes | |
+
+Dentro del taller: `repos.txt` (repositorios y ramas que se siguen) y `radiador.json` (scope
+npm y `registry`, la dirección de tu registro de paquetes).
+
 ## Entregar
 
 ```

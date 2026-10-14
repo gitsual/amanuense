@@ -191,6 +191,28 @@ The token stays on your computer and is only used to read the version history.
 On Confluence Cloud, also add `AMANUENSE_CONFLUENCE_USER=your-email`. If there is no
 network, the log keeps working without authors and says so in its warnings.
 
+## Configuration: what you can set and where
+
+Everything is optional. The app's **Settings** store the Confluence address, space, user, token
+and AI in your own folder (`%APPDATA%\amanuense\settings.json` on Windows, `~/.config/amanuense/`
+elsewhere), never in the workshop; on Windows the token is encrypted with DPAPI. An environment
+variable wins over Settings, which is how a scheduled run gets them.
+
+| Variable | What | Example |
+|---|---|---|
+| `AMANUENSE_CONFLUENCE_URL` | Confluence base address | `https://confluence.example.com` |
+| `AMANUENSE_CONFLUENCE_SPACE` | Space key of the pages | `DOCS` |
+| `AMANUENSE_CONFLUENCE_TOKEN` | Personal access token (never commit it) | |
+| `AMANUENSE_CONFLUENCE_USER` | Account e-mail, only for Confluence Cloud | `ana@example.com` |
+| `AMANUENSE_AI_CLI` | Agent to use: `claude`, `codex`, `gemini`, `copilot` | `copilot` |
+| `AMANUENSE_AI_URL`, `AMANUENSE_AI_MODEL`, `AMANUENSE_AI_KEY` | OpenAI-compatible AI instead of an agent | `http://localhost:11434/v1` |
+| `AMANUENSE_USER` | Name written in the change log | `ana.ruiz` |
+| `AMANUENSE_LANG` | Workshop language: `en` or `es` | `es` |
+| `AMANUENSE_CONFIG_DIR` | Another folder for Settings | |
+
+Inside the workshop: `repos.txt` (repositories and branches to follow) and `radiador.json`
+(npm scope and `registry`, the address of your package registry).
+
 ## Hand it over
 
 ```
