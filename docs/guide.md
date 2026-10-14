@@ -196,7 +196,8 @@ network, the log keeps working without authors and says so in its warnings.
 Everything is optional. The app's **Settings** store the Confluence address, space, user, token
 and AI in your own folder (`%APPDATA%\amanuense\settings.json` on Windows, `~/.config/amanuense/`
 elsewhere), never in the workshop; on Windows the token is encrypted with DPAPI. An environment
-variable wins over Settings, which is how a scheduled run gets them.
+variable wins over Settings. `run` (and so a scheduled run) reads only the environment variables,
+never Settings.
 
 | Variable | What | Example |
 |---|---|---|

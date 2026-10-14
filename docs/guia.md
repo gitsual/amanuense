@@ -199,7 +199,8 @@ red, el registro sigue funcionando sin autores y lo indica en sus avisos.
 Todo es opcional. Los **Ajustes** de la app guardan la dirección de Confluence, el space, el
 usuario, el token y la IA en tu carpeta de usuario (`%APPDATA%\amanuense\settings.json` en
 Windows, `~/.config/amanuense/` en el resto), nunca en el taller; en Windows el token va cifrado
-con DPAPI. Una variable de entorno manda sobre los Ajustes: así los recibe una ejecución programada.
+con DPAPI. Una variable de entorno manda sobre los Ajustes. `run` (y por tanto una ejecución programada) solo lee
+las variables de entorno, nunca los Ajustes.
 
 | Variable | Qué | Ejemplo |
 |---|---|---|
