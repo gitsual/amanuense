@@ -141,14 +141,16 @@ def test_shutdown_stops_the_server(served):
 
 def test_every_text_the_page_uses_exists_in_both_languages():
     import re
-    from amanuense import i18n
+    from amanuense import i18n, intake
     js = (app.WEB / "app.js").read_text(encoding="utf-8")
     keys = set(re.findall(r'"((?:ui|status|origin)_[a-z_0-9]+)"', js))
     dynamic = {f"{p}_{s}" for p, values in {"status": ("pendiente", "aprobada", "publicada", "descartada"),
                                             "ui_filter": ("todo", "pendiente", "conflicto", "aprobada", "publicada",
                                                           "descartada"),
                                             "ui_cat": ("ruido", "dudosa", "actualizar", "encadenar"),
-                                            "ui_job": ("run", "radiator", "deliver", "rework")}.items()
+                                            "ui_job": ("run", "radiator", "deliver", "rework", "intake"),
+                                            "ui_stage": ("fetch", "compare", "write", "log"),
+                                            "ui_reason": intake.SKIP_REASONS}.items()
                for s in values}
     missing = sorted(k for k in keys | dynamic if set(i18n.TEXT.get(k, {})) != {"en", "es"})
     assert missing == []

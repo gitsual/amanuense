@@ -140,7 +140,7 @@ def _state(root: Path, job: Job) -> dict:
             "intake": intake.load_summary(root), "formats": intake.READABLE,
             "limits": {"max_file": intake.MAX_FILE_BYTES, "max_batch": intake.MAX_BATCH_BYTES,
                        "max_files": intake.MAX_BATCH_FILES},
-            "local_dir": i18n.name("local"), "ignore_file": i18n.name("intake_ignore")}
+            "local_dir": i18n.name("local"), "export_dir": i18n.name("export"), "ignore_file": i18n.name("intake_ignore")}
 
 
 def _source(root: Path, job: Job) -> space.Source:
