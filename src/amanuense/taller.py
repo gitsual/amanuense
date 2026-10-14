@@ -40,7 +40,7 @@ import subprocess
 import tempfile
 import urllib.request
 import webbrowser
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable
 
@@ -87,6 +87,8 @@ class Task:
     title: str
     local_rel: str
     page: Page | None
+    sources: list[str] = field(default_factory=list)  # every local file it is built from (a pile can bring several)
+    material: bool = False  # uploaded material without update instructions: the page takes what is new in it
 
 
 def init_workspace(root: Path, lang: str | None = None) -> Path:
@@ -184,13 +186,26 @@ def _demote(markdown: str, levels: int = 2) -> str:
                   markdown, flags=re.MULTILINE)
 
 
-def _tasks(rows, pages: list[Page]) -> list[Task]:
+def _tasks(rows, pages: list[Page], material: set[str] | frozenset = frozenset()) -> list[Task]:
+    """One task per update and per new page; the files of an upload that update the same page
+    share one task, so a pile with three copies of a page asks the AI once."""
+    from .intake import MAX_SOURCES, is_intake
     by_title = {p.title: p for p in pages}
     tasks: list[Task] = []
+    piled: dict[str, Task] = {}
     for r in rows:
         if r.kind in ("update", "update_by_content"):
             page = by_title.get(r.match or r.title)
-            tasks.append(Task("", "update", page.title if page else r.title, r.local, page))
+            title = page.title if page else r.title
+            if is_intake(r.local) and title in piled:
+                if len(piled[title].sources) < MAX_SOURCES:
+                    piled[title].sources.append(r.local)
+                piled[title].material = piled[title].material and r.local in material
+                continue
+            task = Task("", "update", title, r.local, page, [r.local], r.local in material)
+            if is_intake(r.local):
+                piled[title] = task
+            tasks.append(task)
     for r in rows:
         if r.kind == "new":  # instructions without a page stay in the report: map them by hand
             tasks.append(Task("", "new", r.title, r.local, None))
@@ -204,7 +219,12 @@ def _prompt(task: Task, local_text: str, template: Page | None, bible: str) -> s
     t = i18n.t
     rules = t("rules", title=task.title, bible_rule=t("bible_rule" if bible else "no_bible_rule"))
     out = []
-    if task.kind == "update":
+    if task.kind == "update" and task.material:
+        rels = ", ".join(f"`{r}`" for r in task.sources or [task.local_rel])
+        out += [t("task_update_title", title=task.title), "", t("task_material_intro"), "", rules,
+                t("task_material", rels=rels), "", _demote(local_text), "",
+                t("task_current_page"), "", _demote(task.page.markdown if task.page else ""), ""]
+    elif task.kind == "update":
         out += [t("task_update_title", title=task.title), "", t("task_update_intro"), "", rules,
                 t("task_update_instructions", rel=task.local_rel), "", _demote(local_text), "",
                 t("task_current_page"), "", _demote(task.page.markdown if task.page else ""), ""]
@@ -472,18 +492,31 @@ def _index(out: Path, rows, tasks: list[Task], ready: dict[str, list[str]], leve
     return _html_page(t("workshop_title"), body)
 
 
+def _local_text(local_root: Path, task: Task) -> str:
+    rels = task.sources or [task.local_rel]
+    if len(rels) == 1:
+        return _read_local(local_root / rels[0])
+    return "\n\n".join(f"{i18n.t('task_material_from', rel=rel)}\n\n{_read_local(local_root / rel).strip()}"
+                       for rel in rels) + "\n"
+
+
 def run_workspace(root: Path, embed=None, judge=None, ai: Ai | None = None, history=None,
-                  router: Ai | None = None, lang: str | None = None, source=None) -> dict:
+                  router: Ai | None = None, lang: str | None = None, source=None, progress=None) -> dict:
     """`history` gives Confluence authors to the change log; `router` (default: `ai`) routes requests.
     `source` (space.Source) brings the pages read live from Confluence; without it, or when it
-    falls back, the Word export in the workshop is read."""
+    falls back, the Word export in the workshop is read. `progress(stage, done, total)` hears
+    how far it is (stages: compare, write, log)."""
+    from . import intake
     from . import registro as log
     from . import space
+    tell = progress or (lambda stage, done, total: None)
     init_workspace(root, lang)
     n = i18n.name
     exports = _inputs(root / n("export"), ".docx")
     local_root = root / n("local")
-    local = load_local(local_root)
+    tell("compare", 0, 0)
+    skip, skipped = intake.screen(local_root, intake.noise_patterns(root))
+    local = load_local(local_root, skip)
     live = source is not None and source.pages is not None
     if live:
         level, pages = 1, source.pages
@@ -495,8 +528,11 @@ def run_workspace(root: Path, embed=None, judge=None, ai: Ai | None = None, hist
                               {"files": [e.name for e in exports]}, source.warning if source else "")
     used = space.write_summary(root, source)
     rows = compare(pages, local, embed)
+    rows, material = intake.adjust(rows, pages, local, set(intake.promoted(root)))
     if embed and judge:
         rows += find_contradictions(rows, pages, local, embed, judge)
+    if skipped or any(intake.is_intake(d.rel) for d in local) or any(local_root.glob(intake.BATCH_PREFIX + "*")):
+        intake.write_summary(root, rows, local, skipped, used)
 
     out = root / n("out")
     out.mkdir(parents=True, exist_ok=True)
@@ -504,14 +540,15 @@ def run_workspace(root: Path, embed=None, judge=None, ai: Ai | None = None, hist
 
     template = _template(root, exports, level, pages if live else None)
     bible = _bible(root)
-    tasks = _tasks(rows, pages)
+    tasks = _tasks(rows, pages, material)
     ready: dict[str, list[str]] = {}
     sizes: dict[str, int] = {}
     errors: dict[str, str] = {}
-    for t in tasks:
+    for i, t in enumerate(tasks):
+        tell("write", i, len(tasks))
         d = out / n("tasks") / t.slug
         d.mkdir(parents=True, exist_ok=True)
-        local_text = _read_local(local_root / t.local_rel)
+        local_text = _local_text(local_root, t)
         (d / n("local_copy")).write_text(local_text, encoding="utf-8")
         if t.page:
             (d / n("current")).write_text(t.page.markdown, encoding="utf-8")
@@ -528,6 +565,8 @@ def run_workspace(root: Path, embed=None, judge=None, ai: Ai | None = None, hist
         if unsupported is not None:
             ready[t.slug] = unsupported
 
+    tell("write", len(tasks), len(tasks))
+    tell("log", 0, 0)
     done = {f"{n('tasks')}/{t.slug}": t for t in tasks if t.slug in ready}
     changes = log.update_log(root, exports, pages, done, history, router or ai, template, bible, ai=ai,
                              created=source.created if live else None, source=source.kind if live else "export")

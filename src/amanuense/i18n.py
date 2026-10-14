@@ -164,6 +164,16 @@ la IA dice qué página tocar, qué cambiar y por qué, y prepara su tarea.
     },
     "task_update_instructions": {"en": "## Update instructions (`{rel}`)",
                                  "es": "## Instrucciones de actualización (`{rel}`)"},
+    "task_material_intro": {
+        "en": "Act as a technical writer. Update the current page with the new material below: add what is "
+              "new, correct what it shows is out of date, and keep everything else as it is. Material that "
+              "does not belong on this page is left out.",
+        "es": "Actúa como redactor técnico. Actualiza la página actual con el material nuevo de abajo: añade lo "
+              "que sea nuevo, corrige lo que demuestre que está desactualizado y conserva todo lo demás. El "
+              "material que no corresponda a esta página se deja fuera.",
+    },
+    "task_material": {"en": "## New material ({rels})", "es": "## Material nuevo ({rels})"},
+    "task_material_from": {"en": "### From `{rel}`", "es": "### De `{rel}`"},
     "task_current_page": {"en": "## Current page in Confluence", "es": "## Página actual en Confluence"},
     "task_new_title": {"en": "# Task: new page \"{title}\"", "es": "# Tarea: página nueva «{title}»"},
     "task_new_intro": {"en": "Act as a technical writer. Turn the draft into a Confluence page.",
@@ -255,6 +265,33 @@ la IA dice qué página tocar, qué cambiar y por qué, y prepara su tarea.
     "report_title": {"en": "# Confluence ↔ local documentation", "es": "# Confluence ↔ documentación local"},
     "untitled": {"en": "(untitled)", "es": "(sin título)"},
     # ── Confluence storage read as Markdown: what has no Markdown form stays visible ──
+    # ── documents dropped into the review app ──
+    "intake_bad_path": {"en": "The path «{path}» is not allowed (it could leave its folder).",
+                        "es": "La ruta «{path}» no está permitida (podría salirse de su carpeta)."},
+    "intake_bad_batch": {"en": "That upload is not open any more: add the files again.",
+                         "es": "Esa carga ya no está abierta: vuelve a añadir los ficheros."},
+    "intake_unsupported": {"en": "«{path}» is not a document amanuense can read.",
+                           "es": "«{path}» no es un documento que amanuense sepa leer."},
+    "intake_file_too_big": {"en": "«{path}» is bigger than {mb} MB.", "es": "«{path}» supera los {mb} MB."},
+    "intake_batch_too_big": {"en": "The upload would go over {mb} MB: send it in parts.",
+                             "es": "La carga superaría los {mb} MB: envíala por partes."},
+    "intake_incomplete": {"en": "«{path}» arrived incomplete: try again.", "es": "«{path}» ha llegado incompleto: inténtalo otra vez."},
+    "intake_hash_mismatch": {"en": "«{path}» arrived damaged (its fingerprint does not match): try again.",
+                             "es": "«{path}» ha llegado dañado (su huella no coincide): inténtalo otra vez."},
+    "intake_unknown_file": {"en": "«{rel}» is not an uploaded file of this workshop.",
+                            "es": "«{rel}» no es un fichero cargado en este taller."},
+    "intake_ignore_text": {
+        "en": "# Files to leave out when documentation is added in the review app.\n"
+              "# One pattern per line, like .gitignore: «name/» is any folder of that name, a pattern with «/»\n"
+              "# matches the path, any other the file name; «!pattern» brings files back. Built in already:\n"
+              "# logs, lockfiles, test results, build output, node_modules, .git and temporary files.\n"
+              "#   old-drafts/\n#   *-backup.md\n",
+        "es": "# Ficheros que dejar fuera al añadir documentación desde la app de revisión.\n"
+              "# Un patrón por línea, como .gitignore: «nombre/» es cualquier carpeta con ese nombre, un patrón\n"
+              "# con «/» se compara con la ruta y el resto con el nombre; «!patrón» los recupera. Ya incluidos:\n"
+              "# logs, ficheros de bloqueo, resultados de tests, salidas de compilación, node_modules, .git y temporales.\n"
+              "#   borradores-viejos/\n#   *-copia.md\n",
+    },
     "storage_macro": {"en": "⟦Confluence macro: {name}{params}⟧", "es": "⟦Macro de Confluence: {name}{params}⟧"},
     "storage_image": {"en": "⟦Confluence image: {name}⟧", "es": "⟦Imagen de Confluence: {name}⟧"},
     "storage_attachment": {"en": "⟦Confluence attachment: {name}⟧", "es": "⟦Adjunto de Confluence: {name}⟧"},

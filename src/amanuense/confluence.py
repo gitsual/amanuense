@@ -206,10 +206,12 @@ def _read_local(p: Path) -> str:
     return text
 
 
-def load_local(root: Path) -> list[LocalDoc]:
+def load_local(root: Path, skip: set[str] | frozenset = frozenset()) -> list[LocalDoc]:
     docs = []
     for p in sorted(root.rglob("*")):
         if not p.is_file() or p.suffix.lower() not in LOCAL_EXTENSIONS or p.name.startswith("~$"):
+            continue
+        if skip and p.relative_to(root).as_posix() in skip:
             continue
         text = _read_local(p)
         h1 = re.search(r"^#\s+(.+)$", text, re.MULTILINE)
@@ -356,6 +358,9 @@ _SECTIONS = {
          "Reference sentence ↔ local sentence. Under \"Update\" it may be the intended change; elsewhere, check it."),
         ("new", "New in local", "Candidates for a new page."),
         ("confluence_only", "Only in Confluence", "Pages with no local counterpart: current, obsolete or not migrated yet."),
+        ("intake_identical", "Same as Confluence (uploaded)", "Uploaded files whose page already says the same: nothing to do."),
+        ("intake_unmatched", "Uploaded files that match no page",
+         "Candidates for new pages, best first: choose the ones worth a page in the review app."),
     ],
     "es": [
         ("update", "Actualizar en Confluence", "El documento local trae instrucciones para su página."),
@@ -372,6 +377,9 @@ _SECTIONS = {
          "Frase de referencia ↔ frase local. En «Actualizar» puede ser el cambio buscado; en el resto, revisar."),
         ("new", "Nuevos en local", "Candidatos a página nueva."),
         ("confluence_only", "Sólo en Confluence", "Páginas sin equivalente local: vigentes, obsoletas o pendientes de migrar."),
+        ("intake_identical", "Igual que en Confluence (cargados)", "Ficheros cargados cuya página ya dice lo mismo: nada que hacer."),
+        ("intake_unmatched", "Ficheros cargados que no coinciden con ninguna página",
+         "Candidatos a página nueva, los mejores primero: elige en la app de revisión los que merecen página."),
     ],
 }
 
