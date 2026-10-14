@@ -47,7 +47,7 @@ def _sha(text: str) -> str:
 def test_the_plan_says_what_is_used_and_why_the_rest_is_skipped(tmp_path):
     ws = tmp_path / "ws"
     docs_kit.init_workspace(ws, "en")
-    (ws / "2-my-docs" / "already.md").write_text("# Already\n\nKnown.\n", encoding="utf-8")
+    (ws / "2-my-docs" / "already.md").write_bytes(b"# Already\n\nKnown.\n")  # bytes: no \r\n on Windows
     files = [
         {"path": "pile/a.md", "size": 10, "sha256": _sha("a")},
         {"path": "pile/copy-of-a.md", "size": 10, "sha256": _sha("a")},
