@@ -28,6 +28,7 @@ NAMES: dict[str, dict[str, str]] = {
         "verb_update": "update", "verb_new": "new", "workspace": "docs-workshop",
         "code_dir": "code", "repos_dir": "repos",
         "delivery": "delivery", "pages_dir": "pages", "new_dir": "new", "readme": "README.md",
+        "live": "confluence-live.json", "intake_ignore": "intake-ignore.txt",
     },
     "es": {
         "export": "1-export-confluence", "local": "2-mi-documentacion", "bible": "3-biblia", "out": "salida",
@@ -38,6 +39,7 @@ NAMES: dict[str, dict[str, str]] = {
         "local_copy": "LOCAL.md", "verb_update": "actualizar", "verb_new": "nueva", "workspace": "taller-docs",
         "code_dir": "codigo", "repos_dir": "repos",
         "delivery": "entrega", "pages_dir": "paginas", "new_dir": "nuevas", "readme": "LEEME.md",
+        "live": "confluence-en-vivo.json", "intake_ignore": "ignorar-al-cargar.txt",
     },
 }
 
@@ -337,6 +339,14 @@ la IA dice qué página tocar, qué cambiar y por qué, y prepara su tarea.
     "mind_413": {"en": "The page is too big for Confluence.", "es": "La página es demasiado grande para MIND."},
     "mind_429": {"en": "Confluence asks to wait a little. Try again in a minute.",
                  "es": "MIND pide que espere un poco. Prueba de nuevo en un minuto."},
+    "mind_root_missing": {"en": "The page «{title}» is not in the space {space}: check the root page in Settings.",
+                          "es": "La página «{title}» no está en el espacio {space}: revisa la página raíz en Ajustes."},
+    "space_offline_cache": {"en": "Confluence could not be read ({error}); using the copy fetched on {when}.",
+                            "es": "No se ha podido leer Confluence ({error}); se usa la copia leída el {when}."},
+    "space_offline_export": {"en": "Confluence could not be read ({error}); using the Word export instead.",
+                             "es": "No se ha podido leer Confluence ({error}); se usa el export de Word."},
+    "space_cut": {"en": "The space has more than {n} pages: only the first {n} were read. Set a root page in Settings.",
+                  "es": "El espacio tiene más de {n} páginas: solo se han leído las {n} primeras. Indica una página raíz en Ajustes."},
     "mind_5xx": {"en": "Confluence is not answering well right now (error {code}). Try later.",
                  "es": "MIND no responde bien ahora mismo (error {code}). Prueba más tarde."},
     "mind_title_taken": {"en": "A page called «{title}» already exists: {url}",

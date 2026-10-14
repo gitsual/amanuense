@@ -14,8 +14,9 @@ import os
 from pathlib import Path
 
 FILE = "settings.json"
-FIELDS = ("url", "space", "user", "ai_cli", "ai_url", "ai_model")
+FIELDS = ("url", "space", "user", "root_page", "ai_cli", "ai_url", "ai_model")
 ENV = {"url": "AMANUENSE_CONFLUENCE_URL", "space": "AMANUENSE_CONFLUENCE_SPACE", "user": "AMANUENSE_CONFLUENCE_USER",
+       "root_page": "AMANUENSE_CONFLUENCE_ROOT",
        "token": "AMANUENSE_CONFLUENCE_TOKEN", "ai_cli": "AMANUENSE_AI_CLI", "ai_url": "AMANUENSE_AI_URL",
        "ai_model": "AMANUENSE_AI_MODEL"}
 

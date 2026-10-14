@@ -118,14 +118,17 @@ def _bible(root: Path) -> str:
     return "\n\n".join(parts)
 
 
-def _template(root: Path, exports: list[Path], level: int) -> Page | None:
+def _template(root: Path, exports: list[Path], level: int, pages: list[Page] | None = None) -> Page | None:
     """Template for new pages: a «plantilla» document in the bible wins; otherwise the
-    export page named like one, taken whole (with its child pages) at its own level."""
+    export page named like one, taken whole (with its child pages) at its own level,
+    or the live page named like one when the pages come from Confluence itself."""
     folder = root / i18n.name("bible")
     if folder.is_dir():
         for d in load_local(folder):
             if TEMPLATE_TITLE.search(d.title) or TEMPLATE_TITLE.search(Path(d.rel).stem.replace("-", " ")):
                 return Page(d.title, _read_local(folder / d.rel))
+    if pages is not None:
+        return next((p for p in pages if TEMPLATE_TITLE.search(p.title)), None)
     for lvl in range(1, level + 1):
         for e in exports:
             for p in docx_to_pages(e, lvl):
@@ -470,15 +473,27 @@ def _index(out: Path, rows, tasks: list[Task], ready: dict[str, list[str]], leve
 
 
 def run_workspace(root: Path, embed=None, judge=None, ai: Ai | None = None, history=None,
-                  router: Ai | None = None, lang: str | None = None) -> dict:
-    """`history` gives Confluence authors to the change log; `router` (default: `ai`) routes requests."""
+                  router: Ai | None = None, lang: str | None = None, source=None) -> dict:
+    """`history` gives Confluence authors to the change log; `router` (default: `ai`) routes requests.
+    `source` (space.Source) brings the pages read live from Confluence; without it, or when it
+    falls back, the Word export in the workshop is read."""
+    from . import registro as log
+    from . import space
     init_workspace(root, lang)
     n = i18n.name
     exports = _inputs(root / n("export"), ".docx")
     local_root = root / n("local")
     local = load_local(local_root)
-    level = best_page_level(exports, local) if exports else 1
-    pages = [p for e in exports for p in docx_to_pages(e, level)]
+    live = source is not None and source.pages is not None
+    if live:
+        level, pages = 1, source.pages
+    else:
+        level = best_page_level(exports, local) if exports else 1
+        pages = [p for e in exports for p in docx_to_pages(e, level)]
+        created = max((log.export_created(e) for e in exports), default="")
+        source = space.Source("export" if exports else "none", pages, created,
+                              {"files": [e.name for e in exports]}, source.warning if source else "")
+    used = space.write_summary(root, source)
     rows = compare(pages, local, embed)
     if embed and judge:
         rows += find_contradictions(rows, pages, local, embed, judge)
@@ -487,7 +502,7 @@ def run_workspace(root: Path, embed=None, judge=None, ai: Ai | None = None, hist
     out.mkdir(parents=True, exist_ok=True)
     (out / n("report")).write_text(render_report(rows), encoding="utf-8")
 
-    template = _template(root, exports, level)
+    template = _template(root, exports, level, pages if live else None)
     bible = _bible(root)
     tasks = _tasks(rows, pages)
     ready: dict[str, list[str]] = {}
@@ -513,15 +528,15 @@ def run_workspace(root: Path, embed=None, judge=None, ai: Ai | None = None, hist
         if unsupported is not None:
             ready[t.slug] = unsupported
 
-    from . import registro as log
     done = {f"{n('tasks')}/{t.slug}": t for t in tasks if t.slug in ready}
-    changes = log.update_log(root, exports, pages, done, history, router or ai, template, bible, ai=ai)
+    changes = log.update_log(root, exports, pages, done, history, router or ai, template, bible, ai=ai,
+                             created=source.created if live else None, source=source.kind if live else "export")
 
     index = out / "index.html"
     index.write_text(_index(out, rows, tasks, ready, level, sizes, errors), encoding="utf-8")
     return {"page_level": level, "tasks": [t.slug for t in tasks], "ready": sorted(ready), "errors": errors,
             "index": index, "template": template.title if template else None,
-            "log": out / n("log_html"), "log_errors": changes["errors"]}
+            "log": out / n("log_html"), "log_errors": changes["errors"], "source": used}
 
 
 UNSAFE_NAME = re.compile(r'[\\/:*?"<>|]')

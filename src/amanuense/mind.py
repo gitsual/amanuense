@@ -30,6 +30,8 @@ from . import revision
 from . import taller as kit
 
 BACKUP_DIR = "mind-copias"
+SPACE_PAGE_SIZE = 50  # pages per request when reading a whole space
+SPACE_MAX_PAGES = 5000  # a space bigger than this is cut, and the reviewer is told
 LOCAL_HOSTS = ("127.0.0.1", "localhost", "[::1]")
 KEPT = {"structured-macro:code", "plain-text-body", "parameter"}  # a code block goes back as a code macro
 CONVERTED = {"link", "layout", "layout-section", "layout-cell", "emoticon"}
@@ -116,6 +118,31 @@ class Mind:
 
     def get(self, page_id: str) -> dict:
         return self._call("GET", f"/content/{page_id}", {"expand": "version,body.storage,space"})
+
+    def space_pages(self, root: str = "", limit: int = SPACE_PAGE_SIZE, cap: int = SPACE_MAX_PAGES) -> tuple[list[dict], bool]:
+        """Every page of the space (or `root`, a title or an id, and its descendants) with its
+        storage and version, read page by page; (pages, whether the cap cut the list)."""
+        expand = "version,body.storage"
+        found: list[dict] = []
+        if root:
+            top = self.get(root) if root.isdigit() else self.find(root)
+            if not top:
+                raise MindError(i18n.t("mind_root_missing", title=root, space=self.space))
+            found.append(top)
+            path, query = f"/content/{top['id']}/descendant/page", {"expand": expand}
+        else:
+            path, query = "/content", {"spaceKey": self.space, "type": "page", "expand": expand}
+        start = 0
+        while True:
+            data = self._call("GET", path, {**query, "start": start, "limit": limit})
+            results = data.get("results") or []
+            found += results
+            more = "next" in (data.get("_links") or {}) or len(results) >= limit
+            if not results or not more:
+                return found[:cap], len(found) > cap
+            if len(found) >= cap:
+                return found[:cap], True
+            start += len(results)
 
     def update(self, page: dict, storage: str, message: str) -> dict:
         number = page["version"]["number"] + 1

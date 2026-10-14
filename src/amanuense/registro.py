@@ -542,8 +542,13 @@ def _user() -> str:
 
 def update_log(root: Path, exports: list[Path], pages: list[Page], ready: dict[str, kit.Task],
                history: ConfluenceHistory | None = None, router: Ai | None = None,
-               template=None, bible: str = "", run=subprocess.run, ai: Ai | None = None) -> dict:
-    """Adds this run's changes to the log; returns {"entries", "request_tasks", "errors"}."""
+               template=None, bible: str = "", run=subprocess.run, ai: Ai | None = None,
+               created: str | None = None, source: str = "export") -> dict:
+    """Adds this run's changes to the log; returns {"entries", "request_tasks", "errors"}.
+
+    `created` is the baseline of `pages` (a live read's fetch time; by default, the export's
+    date). Pages are only diffed against a snapshot from the same `source`: a live read and a
+    Word export format the same page differently."""
     n = i18n.name
     out = root / n("out")
     out.mkdir(parents=True, exist_ok=True)
@@ -557,10 +562,11 @@ def update_log(root: Path, exports: list[Path], pages: list[Page], ready: dict[s
             entries.append(entry)
 
     # Confluence: compare with the export seen last time.
-    created = max((export_created(e) for e in exports), default="") or _now()
+    created = created or max((export_created(e) for e in exports), default="") or _now()
     snap = _load(out / n("snapshot"), None)
     current = {p.title: p.markdown for p in pages}
-    if pages and snap and snap["pages"] != current:
+    same_source = bool(snap) and snap.get("source", "export") == source
+    if pages and snap and same_source and snap["pages"] != current:
         old = [Page(t, m) for t, m in snap["pages"].items()]
         for change in diff_pages(old, pages):
             versions: list[dict] = []
@@ -574,9 +580,10 @@ def update_log(root: Path, exports: list[Path], pages: list[Page], ready: dict[s
                  "when": versions[0]["when"] if versions else created, "page": change.title,
                  "by": ", ".join(authors) if authors else "?", "change": change.kind,
                  "what": change.summary(), "message": "; ".join(v["message"] for v in versions if v["message"])})
-    if pages and (not snap or snap["pages"] != current):
-        (out / n("snapshot")).write_text(json.dumps({"created": created, "pages": current}, ensure_ascii=False),
-                                    encoding="utf-8")
+    fresher = source != "export" and bool(snap) and snap.get("created") != created
+    if pages and (not snap or snap["pages"] != current or not same_source or fresher):
+        (out / n("snapshot")).write_text(json.dumps({"created": created, "pages": current, "source": source},
+                                                    ensure_ascii=False), encoding="utf-8")
 
     # Code: commits since the previous export (or a lookback window the first time).
     since = snap["created"] if snap else (datetime.now(timezone.utc) - timedelta(days=DEFAULT_LOOKBACK_DAYS)).isoformat()
