@@ -79,6 +79,7 @@ def test_first_pass_commits_a_snapshot_and_a_quiet_one_does_not(world):
     assert "docs/output/log.json" in tracked
     assert "docs/repos/" not in tracked and "radar.log" not in tracked  # clones and the log stay out
 
+    time.sleep(1.1)  # timestamps written by the pass (when it compared, when it read) are not changes
     again = radar(world, "--commit")
     assert again.returncode == 0, again.stdout + again.stderr
     assert "no changes since the last pass" in again.stdout
