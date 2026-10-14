@@ -72,6 +72,7 @@ WORLD = {
                 "## Contracts\n\n- TrafficSnapshot\n\n## Change log\n\n- New page from the draft.\n"),
             "Weather Layer deployment": (
                 "# Weather Layer deployment\n\nRepository: weather-layer.\n\nData refreshes every 5 minutes.\n\n"
+                "> CONFLICT: Ana Ruiz asks for 5 minutes, but the weather-layer README still says 15.\n\n"
                 "## Change log\n\n- Refresh from 15 to 5 minutes, requested by Ana Ruiz.\n"),
         },
         "route": {"page": "Weather Layer deployment", "change": "data refresh from 15 to 5 minutes",
@@ -125,6 +126,7 @@ WORLD = {
                 "## Contratos\n\n- TrafficSnapshot\n\n## Registro de cambios\n\n- Página nueva a partir del borrador.\n"),
             "Despliegue de Weather Layer": (
                 "# Despliegue de Weather Layer\n\nRepositorio: weather-layer.\n\nLos datos se refrescan cada 5 minutos.\n\n"
+                "> CONFLICTO: Ana Ruiz pide 5 minutos, pero el README de weather-layer sigue diciendo 15.\n\n"
                 "## Registro de cambios\n\n- Refresco de 15 a 5 minutos, a petición de Ana Ruiz.\n"),
         },
         "route": {"pagina": "Despliegue de Weather Layer", "cambio": "refresco de datos de 15 a 5 minutos",

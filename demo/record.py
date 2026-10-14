@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import base64
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -25,6 +26,8 @@ sys.path.insert(0, str(HERE.parent / "src"))
 
 from amanuense import i18n  # noqa: E402
 
+import fake_mind  # noqa: E402
+
 LANG = sys.argv[1] if len(sys.argv) > 1 else "en"
 i18n.use(LANG)
 OUT = HERE / "out" / LANG
@@ -36,6 +39,10 @@ CARDS = {
            "All on your machine · you approve every change"),
     "es": ("De MIND a Obsidian, sin perder quién cambió qué",
            "Todo en tu máquina · tú apruebas cada cambio"),
+}[LANG]
+DECISION = {
+    "en": "Refresh every 5 minutes. The weather-layer README changes in the same release.",
+    "es": "Refrescar cada 5 minutos. El README de weather-layer cambia en la misma versión.",
 }[LANG]
 VAULT_PAGES = {
     "en": ("Route Planner contracts", "Route Planner deployment"),
@@ -127,13 +134,69 @@ def workshop(take: Take, browser) -> None:
     take.hold(page, 1)
     take.end(page, "cambios")
 
-    take.scene("pegar", "start")
-    open_page(page, task / n("paste"))
-    take.hold(page, 4)
-    take.end(page, "pegar")
+    page.close()
 
+
+def review(take: Take, browser) -> None:
+    """The review app over the made-up workshop, publishing to a made-up MIND."""
+    from amanuense import app, settings
+
+    config = OUT / "config"
+    shutil.rmtree(config, ignore_errors=True)
+    os.environ.update(AMANUENSE_CONFIG_DIR=str(config), AMANUENSE_USER=fake_mind.EDITOR)
+    snapshot = json.loads((WORKSHOP_OUT / i18n.name("snapshot")).read_text(encoding="utf-8"))
+    mind = fake_mind.start(list(snapshot["pages"]))
+    settings.save({"url": mind.base, "space": fake_mind.SPACE, "token": fake_mind.TOKEN})
+    server = app.serve(OUT / "workshop", lang=LANG)
+    label = lambda key: i18n.TEXT[key][LANG]  # noqa: E731
+    page = browser.new_page(viewport=SIZE)
+    try:
+        page.goto(server.url)
+        page.wait_for_selector(".page-row")
+
+        take.scene("revisar", "start")
+        take.hold(page, 2.5)
+        page.locator(".page-row").first.click()
+        take.hold(page, 2.5)
+        if LANG == "en":
+            page.screenshot(path=str(HERE.parent / "assets" / "review" / "inbox.png"))
+        take.end(page, "revisar")
+
+        take.scene("decidir", "start")
+        page.get_by_role("button", name=label("ui_decide"), exact=True).click()
+        take.hold(page, 1)
+        area = page.locator("form.decide textarea")
+        for word in DECISION.split(" "):
+            area.press_sequentially(word + " ")
+            take.hold(page, 0.1)
+        take.hold(page, 1)
+        page.get_by_role("button", name=label("ui_save_decision")).click()
+        take.hold(page, 2)
+        page.get_by_role("button", name=label("ui_approve"), exact=True).click()
+        take.hold(page, 2)
+        take.end(page, "decidir")
+
+        take.scene("publicar", "start")
+        page.get_by_role("button", name=label("ui_publish"), exact=True).click()
+        page.get_by_role("button", name=label("ui_publish_now")).wait_for()
+        take.hold(page, 3.5)
+        page.get_by_role("button", name=label("ui_publish_now")).click()
+        page.wait_for_selector(".published")
+        take.hold(page, 3)
+        take.end(page, "publicar")
+    finally:
+        page.close()
+        server.shutdown()
+        server.server_close()
+        mind.shutdown()
+        mind.server_close()
+        shutil.rmtree(config, ignore_errors=True)
+
+
+def log(take: Take, browser) -> None:
+    page = browser.new_page(viewport=SIZE)
     take.scene("registro", "start")
-    open_page(page, WORKSHOP_OUT / n("log_html"), 1.25)
+    open_page(page, WORKSHOP_OUT / i18n.name("log_html"), 1.25)
     take.hold(page, 3)
     take.scroll(page, 360)
     take.scroll(page, 360)
@@ -180,6 +243,8 @@ def main() -> None:
     with sync_playwright() as p:
         browser = p.chromium.launch()
         workshop(take, browser)
+        review(take, browser)
+        log(take, browser)
         obsidian(take, p, OUT / "vault")
         page = browser.new_page(viewport=SIZE)
         take.scene("cierre", "start")

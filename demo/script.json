@@ -11,9 +11,17 @@
   "en": "When the AI returns its proposal, you see the change line by line against what Confluence has today. You decide. If the proposal brings a figure that was in none of its sources, the workshop flags it before you approve.",
   "es": "Cuando la IA devuelve su propuesta, ves el cambio línea a línea contra lo que hay hoy en Confluence. Tú decides. Si la propuesta trae un dato que no estaba en ninguna fuente, el taller lo marca antes de que lo apruebes."
  },
- "scene-pegar": {
-  "en": "What you approve comes out as a page ready to copy and paste into Confluence. Nothing publishes itself.",
-  "es": "Lo aprobado sale en una página lista para copiar y pegar en Confluence. Nada se publica solo."
+ "scene-revisar": {
+  "en": "Then you review it all in one place. The app lists every proposed page, and also the tasks the triage set aside, with the reason. Each page shows its changes against MIND and the notes to look at.",
+  "es": "Después lo revisas todo en un solo sitio. La app lista cada página propuesta, y también las tareas que el triaje apartó, con su motivo. Cada página muestra sus cambios contra MIND y los avisos que revisar."
+ },
+ "scene-decidir": {
+  "en": "When the AI finds a contradiction, it does not guess: it leaves a conflict. You decide it in place, and only then can you approve.",
+  "es": "Cuando la IA encuentra una contradicción, no se la inventa: deja un conflicto. Lo decides ahí mismo, y sólo entonces puedes aprobar."
+ },
+ "scene-publicar": {
+  "en": "Then you publish. By hand, copying and pasting, or with a personal token, straight through the Confluence API. It checks first that MIND has not changed since your export and that nothing would be lost, keeps a backup, and can undo.",
+  "es": "Y publicas. A mano, copiando y pegando, o con un token personal, directamente por la API de Confluence. Antes comprueba que MIND no ha cambiado desde tu export y que no se pierde nada, guarda una copia y puede deshacer."
  },
  "scene-registro": {
   "en": "The log says what changed and who changed it. Edits in Confluence, with their author; code commits that leave a page out of date; and requests from the team, where the AI picks the page to touch and explains why.",
