@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "amanuense"
-version = "0.1.0"
+version = "0.2.0"
 description = "Documentation workshop for Confluence: compares a Word export with local drafts, prepares one AI task per page, and logs who changed what in Confluence, the code and the requests."
 readme = "README.md"
 license = "MIT"
@@ -21,7 +21,8 @@ classifiers = [
 dependencies = []
 
 [project.optional-dependencies]
-dev = ["pytest>=8.0"]
+fastapi = ["fastapi>=0.115"]
+dev = ["pytest>=8.0", "fastapi>=0.115", "httpx>=0.27"]
 
 [project.scripts]
 amanuense = "amanuense.taller:main"
