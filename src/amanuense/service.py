@@ -88,6 +88,8 @@ def error_status(exc: Exception) -> tuple[int, dict]:
     """The HTTP status and JSON body every transport answers with for a failed call."""
     if isinstance(exc, Busy):
         return 423, {"error": i18n.t("ui_busy")}
+    if isinstance(exc, Unknown):
+        return 404, {"error": "not found"}
     if isinstance(exc, revision.ReviewError):
         return 409, {"error": str(exc)}
     if isinstance(exc, intake.TooBig):
@@ -289,8 +291,8 @@ class Workshop:
         return work
 
     def _rework(self, body: dict):
+        model = _ai()  # the engine is checked first, as the legacy server did
         rel, instruction = need(body, "rel", "instruction")
-        model = _ai()
         return lambda: revision.rework(self.root, rel, instruction, model, log._user())["title"]
 
     def _start_batch(self, _body: dict) -> dict:
@@ -305,8 +307,8 @@ class Workshop:
         with self._started_lock:
             if batch not in self._started:
                 raise ValueError(i18n.t("intake_bad_batch"))
+            shutil.rmtree(folder)  # a failure keeps the batch ours, so the reviewer can retry
             self._started.discard(batch)
-        shutil.rmtree(folder)
         return {"ok": True}
 
     def _build_actions(self) -> dict:

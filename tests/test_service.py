@@ -171,6 +171,29 @@ def test_only_batches_started_here_can_be_cancelled(workshop):
         workshop.act("intake/cancel", {"batch": batch})  # gone, and no longer ours
 
 
+def test_a_failed_cancel_leaves_the_batch_cancellable(workshop, monkeypatch):
+    batch = workshop.act("intake/start", {})["batch"]
+
+    def locked(_folder):
+        raise PermissionError("file in use")
+    monkeypatch.setattr(service.shutil, "rmtree", locked)
+    with pytest.raises(PermissionError):
+        workshop.act("intake/cancel", {"batch": batch})
+    assert batch in workshop._started  # still ours: the reviewer can retry
+    monkeypatch.undo()
+    assert workshop.act("intake/cancel", {"batch": batch}) == {"ok": True}
+    assert batch not in workshop._started
+
+
+def test_rework_checks_the_ai_engine_before_the_fields(workshop, monkeypatch):
+    with pytest.raises(ValueError, match=i18n.t("ui_ai_not_configured")):
+        workshop.start_job("rework", {})  # no fields either: the engine is reported first
+    monkeypatch.setenv("AMANUENSE_AI_CLI", "claude")
+    monkeypatch.setattr(docs_kit, "cli_client", lambda name: object())
+    with pytest.raises(ValueError, match="rel"):
+        workshop.start_job("rework", {})  # engine ok: now the missing fields are reported
+
+
 def test_target_resolves_known_places_and_refuses_the_rest(workshop):
     assert workshop.target("workspace") == workshop.root
     with pytest.raises(ValueError):
@@ -194,11 +217,13 @@ def test_tokens_are_long_unique_and_compared_exactly():
     (mind.MindError("down"), 400),
     (ValueError("bad"), 400),
     (FileNotFoundError("gone"), 400),
+    (service.Unknown("nope"), 404),
 ])
 def test_error_status_maps_known_errors(exc, code):
     status, body = service.error_status(exc)
     assert status == code
-    assert body == {"error": i18n.t("ui_busy") if code == 423 else str(exc)}
+    expected = {423: i18n.t("ui_busy"), 404: "not found"}.get(code, str(exc))
+    assert body == {"error": expected}
 
 
 def test_error_status_hides_nothing_on_a_crash(capsys):
