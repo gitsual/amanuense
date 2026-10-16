@@ -189,6 +189,34 @@ published. *Automatically*, with a Confluence address, space and personal token 
 
 Details and the remaining safeguards: [docs/guide.md](docs/guide.md#publishing).
 
+### Inside another web app (optional)
+
+The review screens can live in a FastAPI host instead of their own page. That needs an extra; the core
+install and `amanuense review` stay free of dependencies and unchanged.
+
+```bash
+pip install 'amanuense[fastapi]'
+```
+
+```python
+from fastapi import FastAPI
+from amanuense import api
+
+app = FastAPI()
+api.install(app, "/path/to/workshop")   # adds /api/amanuense/*
+```
+
+`install` raises `FileNotFoundError` if the folder does not exist and `RuntimeError` if the app already
+has a workshop. It never writes to the folder. The router only **reads**: `GET /state`, `/page?rel=`,
+`/job`, `/task?rel=` and `POST /preview` (Markdown to HTML, 2 MB at most). Errors are `{"error": "…"}`
+with the same status codes as the review app. It has no route to stop the process or to open a local
+program, and `rel` values that leave the workshop are refused.
+
+`amanuense.api.API_VERSION` is a plain integer that grows whenever a route is added or changes; a host
+compares it with the version it was written for and hides the integration when it is lower. This release
+is version 1. To turn the labels of the review screens into a host's locale files, see
+`scripts/export_ui_texts.py`.
+
 ## The change log
 
 Each run updates `output/log.html`:
