@@ -866,12 +866,18 @@ def main(argv: list[str] | None = None) -> None:
         print(init_workspace(a.root, a.lang) / i18n.name("guide"))
         return
     if a.cmd == "obsidian":
-        from .obsidian import export_to_vault
+        from .obsidian import export_to_vault, workshop_to_vault
         try:
-            done = export_to_vault(a.export, a.dest, a.force)
+            if a.export.is_dir():
+                i18n.choose(a.export, a.lang)
+                done = workshop_to_vault(a.export, a.dest, a.force)
+                print(t("cli_workshop_vault_done", notes=done["notes"], media=done["media"],
+                        export=done["export"].name, copied=done["copied"], vault=done["vault"]))
+            else:
+                done = export_to_vault(a.export, a.dest, a.force)
+                print(t("cli_vault_done", notes=done["notes"], media=done["media"], vault=done["vault"]))
         except (FileExistsError, FileNotFoundError) as e:
             raise SystemExit(f"✗ {e}") from None
-        print(t("cli_vault_done", notes=done["notes"], media=done["media"], vault=done["vault"]))
         return
     if a.cmd == "radiator":
         index = radiator_workspace(a.root, a.lang)

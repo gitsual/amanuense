@@ -100,3 +100,60 @@ def test_cli_rerun_explains_instead_of_crashing(tmp_path):
     with pytest.raises(SystemExit) as stop:
         taller.main(args)
     assert "--force" in str(stop.value.code)
+
+
+# ── a whole workshop becomes a vault ──────────────────────────────────────────
+
+def _workshop(tmp_path):
+    from amanuense import i18n
+    ws = tmp_path / "ws"
+    export = ws / i18n.name("export")
+    export.mkdir(parents=True)
+    _export(tmp_path).rename(export / "Bricks.docx")
+    (ws / i18n.name("local")).mkdir()
+    (ws / i18n.name("local") / "Contrato.md").write_text("# Contrato\n", encoding="utf-8")
+    (ws / i18n.name("bible")).mkdir()
+    (ws / i18n.name("bible") / "Norma.md").write_text("# Norma\n", encoding="utf-8")
+    return ws
+
+
+def test_workshop_becomes_a_vault_with_mind_local_and_bible(tmp_path):
+    from amanuense import i18n
+    ws, vault = _workshop(tmp_path), tmp_path / "vault"
+    (vault / ".obsidian").mkdir(parents=True)
+    (vault / ".obsidian" / "app.json").write_text("{}", encoding="utf-8")
+    done = obsidian.workshop_to_vault(ws, vault)
+    assert (vault / "MIND" / "Bricks" / "_index.md").exists()
+    assert (vault / i18n.name("local") / "Contrato.md").read_text(encoding="utf-8") == "# Contrato\n"
+    assert (vault / i18n.name("bible") / "Norma.md").exists()
+    assert (vault / ".obsidian" / "app.json").exists(), "the vault's own settings are never touched"
+    assert done["notes"] == 8 and done["copied"] == 2
+
+
+def test_workshop_rerun_needs_force_and_then_regenerates(tmp_path):
+    import pytest
+    ws, vault = _workshop(tmp_path), tmp_path / "vault"
+    obsidian.workshop_to_vault(ws, vault)
+    with pytest.raises(FileExistsError):
+        obsidian.workshop_to_vault(ws, vault)
+    stale = vault / "MIND" / "Old page.md"
+    stale.write_text("# Old\n", encoding="utf-8")
+    obsidian.workshop_to_vault(ws, vault, force=True)
+    assert not stale.exists(), "the derived tree is rebuilt, not merged"
+    assert (vault / "MIND" / "Bricks" / "_index.md").exists()
+
+
+def test_workshop_without_export_explains(tmp_path):
+    import pytest
+    from amanuense import i18n
+    ws = tmp_path / "ws"
+    (ws / i18n.name("export")).mkdir(parents=True)
+    with pytest.raises(FileNotFoundError):
+        obsidian.workshop_to_vault(ws, tmp_path / "vault")
+
+
+def test_cli_obsidian_accepts_a_workshop(tmp_path, capsys):
+    from amanuense import taller
+    taller.main(["obsidian", str(_workshop(tmp_path)), str(tmp_path / "vault")])
+    out = capsys.readouterr().out
+    assert "8" in out and str(tmp_path / "vault") in out

@@ -324,7 +324,10 @@ Inside the workshop: `repos.txt`, `requests.md` and `radiador.json`. Full refere
 
 - **Obsidian**: `./amanuense.sh obsidian EXPORT.docx ~/Vault/Docs` turns the export into a vault, one
   folder per root page, one note per child, images in `_media/`, linked indexes. `--force` rewrites an
-  existing export. A matching theme is in [`assets/obsidian/letravora.css`](assets/obsidian/letravora.css).
+  existing export. Give it the workshop folder instead (`./amanuense.sh obsidian ~/docs-workshop ~/Vault`)
+  and it builds the whole vault: `MIND/` from the newest export plus copies of your local docs and the
+  bible, so a search tool over the vault sees all three; rerun with `--force` after each new export.
+  Only those three folders are rebuilt. A matching theme is in [`assets/obsidian/letravora.css`](assets/obsidian/letravora.css).
   See [docs/guide.md](docs/guide.md#move-mind-to-obsidian).
 - **Duplicates by content**: with [obsidian-search](https://github.com/gitsual/obsidian-search)
   installed in the same Python, `--content` also finds renamed pages and duplicates by meaning, and

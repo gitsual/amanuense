@@ -9,11 +9,13 @@ _media/ y se insertan como ![[nombre]]. Sólo biblioteca estándar.
 
 Uso:
   amanuense obsidian EXPORT.docx VAULT/MIND [--force]
+  amanuense obsidian WORKSHOP VAULT [--force]   # MIND + local docs + bible
 """
 from __future__ import annotations
 
 import posixpath
 import re
+import shutil
 import zipfile
 import xml.etree.ElementTree as ET
 from pathlib import Path
@@ -173,3 +175,30 @@ def export_to_vault(export: Path, vault: Path, force: bool = False) -> dict:
         for name, data in media.items():
             (vault / MEDIA_DIR / name).write_bytes(data)
     return {"notes": len(v.notes), "media": len(media), "vault": vault}
+
+
+MIND_DIR = "MIND"
+
+
+def workshop_to_vault(workshop: Path, vault: Path, force: bool = False) -> dict:
+    """The whole workshop as a vault: MIND from the newest export, plus copies of
+    the local docs and the bible. Only those three subtrees are rebuilt; anything
+    else in the vault (.obsidian, other folders) is left alone."""
+    workshop, vault = Path(workshop), Path(vault)
+    exports = sorted((workshop / i18n.name("export")).glob("*.docx"), key=lambda p: p.stat().st_mtime)
+    if not exports:
+        raise FileNotFoundError(i18n.t("vault_no_export", folder=workshop / i18n.name("export")))
+    targets = {MIND_DIR: None, i18n.name("local"): workshop / i18n.name("local"),
+               i18n.name("bible"): workshop / i18n.name("bible")}
+    existing = [name for name in targets if (vault / name).exists()]
+    if existing and not force:
+        raise FileExistsError(i18n.t("vault_exists", folders=", ".join(existing)))
+    for name in existing:
+        shutil.rmtree(vault / name)
+    done = export_to_vault(exports[-1], vault / MIND_DIR, force=True)
+    copied = 0
+    for name, src in targets.items():
+        if src is not None and src.is_dir():
+            shutil.copytree(src, vault / name)
+            copied += 1
+    return {**done, "copied": copied, "vault": vault, "export": exports[-1]}
