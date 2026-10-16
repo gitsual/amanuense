@@ -3,6 +3,7 @@
 #   No arguments: opens the review app (the first time it also creates the workshop folder).
 #   ./amanuense.sh [run args, e.g. --ai-cli claude]   (look for changes, then the app)
 #   ./amanuense.sh obsidian EXPORT.docx VAULT/MIND   (export to an Obsidian vault)
+#   ./amanuense.sh vault                             (rebuild WORKSHOP/vault from the whole workshop)
 #   ./amanuense.sh deliver --zip                     (delivery folder + zip)
 #   ./amanuense.sh --lang es        (Spanish workshop; default English, an existing workshop keeps its own)
 #   Workshop folder: AMANUENSE_WORKSPACE (or .env), default ~/docs-workshop (~/taller-docs if it exists).
@@ -20,6 +21,7 @@ done
 [[ -n "$PY" ]] || { echo "✗ missing: Python 3.11 or newer" >&2; exit 1; }
 export PYTHONPATH="$HERE/src${PYTHONPATH:+:$PYTHONPATH}"
 [[ "${1:-}" == obsidian ]] && exec "$PY" -m amanuense "$@"
+[[ "${1:-}" == vault ]] && exec "$PY" -m amanuense obsidian "$WS" "$WS/vault" --force "${@:2}"
 # --lang works before or after the subcommand; init only needs that one flag.
 LANG_ARGS=()
 for ((i = 1; i <= $#; i++)); do
