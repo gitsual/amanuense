@@ -33,6 +33,21 @@ def test_pyproject_declares_the_fastapi_extra_and_keeps_the_core_dependency_free
     assert {"pytest>=8.0", "fastapi>=0.115", "httpx>=0.27"} <= set(extras["dev"])
 
 
+def test_package_version_matches_pyproject():
+    from amanuense import __version__
+    meta = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+    assert __version__ == meta["project"]["version"]
+
+
+def test_rel_normalises_backslashes_and_still_rejects_traversal():
+    pytest.importorskip("fastapi")
+    from amanuense import api
+    assert api._rel("tareas\\01-x") == "tareas/01-x"
+    for bad in ("../x", "a\\..\\b", "/abs"):
+        with pytest.raises(ValueError):
+            api._rel(bad)
+
+
 def test_import_error_message_when_fastapi_missing():
     run = _python("import sys; sys.modules['fastapi'] = None\nimport amanuense.api")
     assert run.returncode != 0

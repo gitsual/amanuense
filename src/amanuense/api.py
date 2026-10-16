@@ -70,7 +70,7 @@ def _rel(rel: str) -> str:
     parts = PurePosixPath(rel.replace("\\", "/")).parts
     if PurePosixPath(rel).is_absolute() or PureWindowsPath(rel).anchor or ".." in parts:
         raise ValueError("bad path")
-    return rel
+    return "/".join(parts)
 
 
 def _limit(max_bytes: int):

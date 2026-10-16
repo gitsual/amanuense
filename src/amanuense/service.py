@@ -40,7 +40,8 @@ class Unknown(KeyError):
 class Job:
     def __init__(self):
         self.lock = threading.Lock()
-        self.state = {"name": "", "running": False, "started": "", "finished": "", "result": None, "error": ""}
+        self.state = {"name": "", "running": False, "started": "", "finished": "", "result": None, "error": "",
+                      "progress": {"stage": "", "done": 0, "total": 0}}
 
     def start(self, name: str, work) -> None:
         with self.lock:
@@ -303,11 +304,14 @@ class Workshop:
 
     def _cancel_batch(self, body: dict) -> dict:
         batch = str(body.get("batch", ""))
-        folder = intake.batch_dir(self.root, batch)
         with self._started_lock:
             if batch not in self._started:
                 raise ValueError(i18n.t("intake_bad_batch"))
-            shutil.rmtree(folder)  # a failure keeps the batch ours, so the reviewer can retry
+        try:
+            shutil.rmtree(intake.batch_dir(self.root, batch))  # a failure keeps the batch ours: retry is possible
+        except (FileNotFoundError, intake.IntakeError):
+            pass  # the folder is already gone: nothing left to remove
+        with self._started_lock:
             self._started.discard(batch)
         return {"ok": True}
 

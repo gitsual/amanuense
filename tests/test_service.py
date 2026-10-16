@@ -185,6 +185,17 @@ def test_a_failed_cancel_leaves_the_batch_cancellable(workshop, monkeypatch):
     assert batch not in workshop._started
 
 
+def test_cancelling_a_batch_whose_folder_is_already_gone_succeeds(workshop):
+    batch = workshop.act("intake/start", {})["batch"]
+    service.shutil.rmtree(service.intake.batch_dir(workshop.root, batch))
+    assert workshop.act("intake/cancel", {"batch": batch}) == {"ok": True}
+    assert batch not in workshop._started
+
+
+def test_a_job_at_rest_already_reports_its_progress_shape():
+    assert service.Job().snapshot()["progress"] == {"stage": "", "done": 0, "total": 0}
+
+
 def test_rework_checks_the_ai_engine_before_the_fields(workshop, monkeypatch):
     with pytest.raises(ValueError, match=i18n.t("ui_ai_not_configured")):
         workshop.start_job("rework", {})  # no fields either: the engine is reported first
