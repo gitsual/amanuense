@@ -2,14 +2,17 @@
 api — the workshop as a FastAPI router, for a host that already serves a web app.
 
 Optional: needs `pip install 'amanuense[fastapi]'`. The router reads (the review screens'
-state, a page, the job, a task, a Markdown preview) and hands out the per-process session
+state, a page, the job, a task, a Markdown preview), takes documentation in (the intake routes
+and `POST /job`) and hands out the per-process session
 token that every mutating route requires; the host adds it with `install(app, workspace)`.
 It has no route to stop the process or to open a local program.
 """
 from __future__ import annotations
 
+import asyncio
 import json
 import os
+import queue
 from pathlib import Path, PurePosixPath, PureWindowsPath
 from urllib.parse import urlsplit
 
@@ -28,8 +31,10 @@ from . import intake
 from . import service
 from . import settings
 
-API_VERSION = 2  # bumped when a route is added or changes; the host checks it
+API_VERSION = 3  # bumped when a route is added or changes; the host checks it
 MAX_BODY = 2_000_000
+MAX_PLAN_BODY = 16_000_000  # the list of a big pile (path, size and hash of each file)
+_CHUNKS = 8  # request chunks held between the network and the disk
 LOOPBACK = frozenset({"127.0.0.1", "localhost", "::1"})  # Host names the token routes answer to
 MUTATING: dict[str, bool] = {}  # mutating route path (below the prefix) -> waits for a running job
 
@@ -199,6 +204,87 @@ def task(rel: str = "", ws: service.Workshop = Depends(_ws)) -> dict:
 @router.post("/preview")
 async def preview(body: dict = Depends(_limit(MAX_BODY)), ws: service.Workshop = Depends(_ws)) -> dict:
     return await run_in_threadpool(ws.act, "preview", body)
+
+
+# ── Documentation intake: plan, start, file × N, job "intake", poll /job ───────
+
+@mutating("/intake/plan", busy=False)
+async def intake_plan(body: dict = Depends(_limit(MAX_PLAN_BODY)), ws: service.Workshop = Depends(_ws)) -> dict:
+    return await run_in_threadpool(ws.act, "intake/plan", body)
+
+
+@mutating("/intake/start")
+def intake_start(body: dict = Depends(_limit(MAX_BODY)), ws: service.Workshop = Depends(_ws)) -> dict:
+    return ws.act("intake/start", body)
+
+
+@mutating("/intake/cancel")
+def intake_cancel(body: dict = Depends(_limit(MAX_BODY)), ws: service.Workshop = Depends(_ws)) -> dict:
+    return ws.act("intake/cancel", body)
+
+
+@mutating("/intake/promote")
+def intake_promote(body: dict = Depends(_limit(MAX_BODY)), ws: service.Workshop = Depends(_ws)) -> dict:
+    return ws.act("intake/promote", body)
+
+
+class _Pipe:
+    """A blocking `read(n)` over chunks handed in by the event loop; the end is `None`."""
+
+    def __init__(self):
+        self.chunks: queue.Queue = queue.Queue(maxsize=_CHUNKS)
+        self.rest = b""
+        self.ended = False
+
+    def read(self, n: int) -> bytes:
+        while len(self.rest) < n and not self.ended:
+            chunk = self.chunks.get()
+            if chunk is None:
+                self.ended = True
+            else:
+                self.rest += chunk
+        out, self.rest = self.rest[:n], self.rest[n:]
+        return out
+
+
+async def _feed(request: Request, pipe: _Pipe, worker: asyncio.Future) -> None:
+    """Hands the body to the worker chunk by chunk (never whole); stops early if the worker already finished (refused)."""
+    async def put(item) -> bool:
+        while not worker.done():
+            try:
+                pipe.chunks.put_nowait(item)
+                return True
+            except queue.Full:
+                await asyncio.sleep(0.002)
+        return False
+    try:
+        async for chunk in request.stream():
+            if not await put(chunk):
+                break
+    finally:
+        await put(None)
+
+
+@mutating("/intake/file")
+async def intake_file(request: Request, batch: str = "", path: str = "", ws: service.Workshop = Depends(_ws)):
+    """One file of a pile, as it is: the raw body is streamed to disk as it arrives."""
+    if request.headers.get("content-type", "").split(";")[0].strip() != "application/octet-stream":
+        return JSONResponse({"error": "application/octet-stream expected"}, status_code=415)
+    size = int(request.headers.get("content-length") or 0)
+    pipe = _Pipe()
+    worker = asyncio.ensure_future(run_in_threadpool(
+        ws.upload, batch, path, pipe, size, request.headers.get("x-content-sha256", "")))
+    await _feed(request, pipe, worker)
+    return {"stored": await worker}
+
+
+@mutating("/job", busy=False)
+def job_start(body: dict = Depends(_limit(MAX_BODY)), ws: service.Workshop = Depends(_ws)):
+    """Starts a background job from the fixed list; a second one while it runs is 423. Poll `GET /job`."""
+    name = str(body.get("name", ""))
+    if name not in service.JOBS:
+        return JSONResponse({"error": "unknown job"}, status_code=404)
+    return ws.start_job(name, body)
 
 
 # ── Settings: the same routes with a workshop and in the reduced install ────────

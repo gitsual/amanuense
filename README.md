@@ -207,8 +207,13 @@ api.install(app, "/path/to/workshop")   # adds /api/amanuense/*
 ```
 
 `install` raises `FileNotFoundError` if the folder does not exist and `RuntimeError` if the app already
-has a workshop. It never writes to the folder. The router only **reads**: `GET /state`, `/page?rel=`,
-`/job`, `/task?rel=` and `POST /preview` (Markdown to HTML, 2 MB at most). Errors are `{"error": "…"}`
+has a workshop. It never writes to the folder on install. It reads: `GET /state`, `/page?rel=`,
+`/job`, `/task?rel=` and `POST /preview` (Markdown to HTML, 2 MB at most). It also takes documentation in:
+`POST /intake/plan` (`{files:[{path,size,sha256}]}`, up to 16 MB), `/intake/start` (-> `{batch, folder}`),
+`/intake/file?batch=&path=` (raw `application/octet-stream` body with `X-Content-SHA256`, streamed to disk),
+`/intake/cancel` (`{batch}`), `/intake/promote` (`{rel}`) and `POST /job` (`{name, batch?}` with `name` in
+`run`, `intake`, `radiator`, `deliver`, `rework`; poll `GET /job`). All need the token; all but the plan and
+`/job` wait while a job runs (423). Errors are `{"error": "…"}`
 with the same status codes as the review app. It has no route to stop the process or to open a local
 program, and `rel` values that leave the workshop are refused.
 

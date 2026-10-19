@@ -59,7 +59,9 @@ def test_the_router_has_no_way_to_stop_the_server_or_open_a_browser():
     from amanuense import api
     paths = {route.path for route in api.router.routes}
     assert paths == {f"{BASE}/state", f"{BASE}/page", f"{BASE}/job", f"{BASE}/task", f"{BASE}/preview",
-                     f"{BASE}/session", f"{BASE}/settings", f"{BASE}/settings/test", f"{BASE}/settings/forget"}
+                     f"{BASE}/session", f"{BASE}/settings", f"{BASE}/settings/test", f"{BASE}/settings/forget",
+                     f"{BASE}/intake/plan", f"{BASE}/intake/start", f"{BASE}/intake/file", f"{BASE}/intake/cancel",
+                     f"{BASE}/intake/promote", f"{BASE}/job"}
     source = (SRC / "amanuense" / "api.py").read_text(encoding="utf-8")
     assert "webbrowser" not in source and "shutdown" not in source and "/open" not in source
 
@@ -108,7 +110,7 @@ def blocking(monkeypatch):
 def test_install_exposes_the_workshop_and_the_api_version(host):
     from amanuense import api, service
     app, folder, _client = host
-    assert api.API_VERSION == 2
+    assert api.API_VERSION == 3
     assert isinstance(app.state.amanuense, service.Workshop) and app.state.amanuense.root == folder.resolve()
 
 
