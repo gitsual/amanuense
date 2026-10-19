@@ -13,7 +13,7 @@ import asyncio
 import json
 import os
 import queue
-from pathlib import Path, PurePosixPath, PureWindowsPath
+from pathlib import Path
 from urllib.parse import urlsplit
 
 try:
@@ -143,10 +143,7 @@ def _ws(request: Request) -> service.Workshop:
 
 def _rel(rel: str) -> str:
     """A page path as sent on the wire: relative and inside the workshop, whatever the separators."""
-    parts = PurePosixPath(rel.replace("\\", "/")).parts
-    if PurePosixPath(rel).is_absolute() or PureWindowsPath(rel).anchor or ".." in parts:
-        raise ValueError("bad path")
-    return "/".join(parts)
+    return service.safe_rel(rel)
 
 
 def _limit(max_bytes: int):

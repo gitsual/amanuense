@@ -53,6 +53,18 @@ def _result(folder, rel):
     return (folder / docs_kit.OUT_DIR / rel / "RESULTADO.md").read_text(encoding="utf-8")
 
 
+def _snapshot(folder):
+    """Every file under the workshop folder and its parent, by relative path and bytes."""
+    return {str(f.relative_to(folder.parent)): f.read_bytes() for f in sorted(folder.parent.rglob("*")) if f.is_file()}
+
+
+def _bodies(rel):
+    return {"/save": {"rel": rel, "markdown": "PWNED"},
+            "/resolve": {"rel": rel, "notice": CONFLICT, "decision": "PWNED"},
+            "/approve": {"rel": rel}, "/reopen": {"rel": rel},
+            "/discard": {"rel": rel, "reason": "PWNED"}, "/promote": {"rel": rel}}
+
+
 def _set_aside(folder):
     """A task the triage left out, as `revision.set_aside` lists it."""
     out = folder / docs_kit.OUT_DIR
@@ -69,15 +81,34 @@ def _set_aside(folder):
 
 def test_every_review_route_is_registered_and_needs_the_token(host):
     from amanuense import api
-    _app, folder, client, _h = host
+    _app, folder, client, h = host
     assert set(ROUTES) <= set(api.MUTATING)
-    before = _result(folder, UPDATE)
-    for path in ROUTES:
-        got = client.post(f"{BASE}{path}", json={"rel": UPDATE, "markdown": "x", "reason": "r",
-                                                 "notice": CONFLICT, "decision": "d"})
+    before = _snapshot(folder)
+    foreign = {"Host": "evil.example", **h}
+    for path, body in _bodies(UPDATE).items():
+        got = client.post(f"{BASE}{path}", json=body)
         assert got.status_code == 403 and got.json() == {"error": "token"}, path
-    assert _result(folder, UPDATE) == before
+        wrong = client.post(f"{BASE}{path}", json=body, headers={HEADER: "not-the-token"})
+        assert wrong.status_code == 403 and wrong.json() == {"error": "token"}, path
+        assert client.post(f"{BASE}{path}", json=body, headers=foreign).status_code == 403, path
+    assert _snapshot(folder) == before  # state, log and every page file untouched
     assert client.get(f"{BASE}/page", params={"rel": UPDATE}).json()["proposal"]["status"] == "pendiente"
+
+
+@pytest.mark.parametrize("path", ROUTES)
+@pytest.mark.parametrize("rel", ["../../outside", "ABS", "a\\..\\..\\x", 5, ""])
+def test_a_page_outside_the_workshop_is_refused_before_any_write(host, tmp_path, path, rel):
+    _a, folder, client, h = host
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (outside / "RESULTADO.md").write_text("original\n", encoding="utf-8")
+    if rel == "ABS":
+        rel = str(outside)
+    before, sentinel = _snapshot(folder), _snapshot(outside)
+    got = client.post(f"{BASE}{path}", json=_bodies(rel)[path], headers=h)
+    assert got.status_code == 400, (path, rel, got.text)
+    assert _snapshot(outside) == sentinel  # nothing rewritten, nothing new beside it
+    assert _snapshot(folder) == before  # state, log and the pages as they were
 
 
 def test_save_shows_in_the_page_and_marks_it_edited(host):
@@ -127,14 +158,18 @@ def test_promote_sends_a_set_aside_task_back_to_be_written(host):
     assert revision.set_aside(folder) == []
 
 
-def test_save_waits_while_a_job_runs_and_leaves_the_file_alone(host, blocking):
+def test_review_routes_wait_while_a_job_runs_and_leave_every_file_alone(host, blocking):
     app, folder, client, h = host
-    before = _result(folder, UPDATE)
+    before = _snapshot(folder)
     app.state.amanuense.start_job("run", {})
-    for path, body in (("/save", {"rel": UPDATE, "markdown": "# X\n\nPerdido."}), ("/approve", {"rel": NEW}),
-                       ("/discard", {"rel": NEW, "reason": "r"})):
+    bodies = {"/save": {"rel": UPDATE, "markdown": "# X\n\nPerdido."},
+              "/resolve": {"rel": UPDATE, "notice": CONFLICT, "decision": "Perdido."},
+              "/approve": {"rel": NEW}, "/reopen": {"rel": NEW},
+              "/discard": {"rel": NEW, "reason": "r"}, "/promote": {"rel": NEW}}
+    assert set(bodies) == set(ROUTES)
+    for path, body in bodies.items():
         assert client.post(f"{BASE}{path}", json=body, headers=h).status_code == 423, path
-    assert _result(folder, UPDATE) == before
+    assert _snapshot(folder) == before
     blocking.set()
     for _ in range(200):
         if not client.get(f"{BASE}/job").json()["running"]:

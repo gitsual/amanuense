@@ -178,6 +178,7 @@ def _task(root: Path, rel: str) -> kit.Task:
 
 def save_text(root: Path, rel: str, markdown: str, by: str, what: str | None = None) -> dict:
     """Saves the reviewer's text; the AI's first proposal is kept beside it."""
+    find(root, rel)  # an unknown page is refused before anything is written
     d = _out(root) / rel
     result = d / i18n.name("result")
     copy = result.with_name(result.stem + AI_COPY)
@@ -189,6 +190,7 @@ def save_text(root: Path, rel: str, markdown: str, by: str, what: str | None = N
 
 
 def resolve_notice(root: Path, rel: str, notice: str, decision: str, by: str) -> dict:
+    find(root, rel)
     result = _out(root) / rel / i18n.name("result")
     lines = result.read_text(encoding="utf-8").splitlines()
     hits = [i for i, line in enumerate(lines) if line.strip().lstrip(">").strip() == notice]
@@ -227,10 +229,13 @@ def set_aside(root: Path) -> list[dict]:
 
 def promote(root: Path, rel: str, by: str) -> None:
     """Sends a set-aside task back to be written: the next search solves it."""
+    find_aside = [x for x in set_aside(root) if x["rel"] == rel]
+    if not find_aside:
+        raise ReviewError(i18n.t("review_unknown", rel=rel))
     out = _out(root)
     path = out / rel / log.TRIAGE_FILE
     verdict = log._load(path, {})
-    title = next((x["title"] for x in set_aside(root) if x["rel"] == rel), "")
+    title = find_aside[0]["title"]
     verdict.update(categoria="actualizar", motivo=i18n.t("review_promoted_reason", by=by,
                                                           before=verdict.get("motivo", "")))
     path.write_text(json.dumps(verdict, ensure_ascii=False, indent=1), encoding="utf-8")

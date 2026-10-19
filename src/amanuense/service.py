@@ -13,7 +13,7 @@ import secrets
 import shutil
 import threading
 import traceback
-from pathlib import Path
+from pathlib import Path, PurePosixPath, PureWindowsPath
 
 from . import i18n
 from . import intake
@@ -27,6 +27,9 @@ from . import taller as kit
 TOKEN_HEADER = "X-Amanuense-Token"
 READS_ONLY = frozenset({"preview", "preflight", "settings/test", "intake/plan"})  # allowed while a job runs
 JOBS = frozenset({"run", "intake", "radiator", "deliver", "rework"})
+# actions whose body names a page of the workshop; `rel` is checked before any of them runs
+PAGE_ACTIONS = frozenset({"save", "resolve", "approve", "reopen", "discard", "promote",
+                          "mark-published", "publish", "undo", "preflight"})
 
 
 class Busy(Exception):
@@ -115,6 +118,26 @@ def diff(before: str, after: str) -> list[dict]:
     a, b = before.splitlines(), after.splitlines()
     return [{"op": op, "a": a[i1:i2], "b": b[j1:j2], "a_start": i1 + 1, "b_start": j1 + 1}
             for op, i1, i2, j1, j2 in difflib.SequenceMatcher(None, a, b, autojunk=False).get_opcodes()]
+
+
+def page_rel(rel) -> str:
+    """The `rel` of an action: a non-empty string, then the same rule as `safe_rel`."""
+    if not isinstance(rel, str) or not rel.strip():
+        raise ValueError(i18n.t("ui_missing", fields="rel"))
+    return safe_rel(rel)
+
+
+def safe_rel(rel: str) -> str:
+    """A page path as sent on the wire: relative and inside the workshop, whatever the separators."""
+    parts = PurePosixPath(rel.replace("\\", "/")).parts
+    if PurePosixPath(rel).is_absolute() or PureWindowsPath(rel).anchor or ".." in parts:
+        raise ValueError("bad path")
+    return "/".join(parts)
+
+
+def _checked(name: str, names: frozenset, body: dict) -> dict:
+    """The body with a clean `rel`, or ValueError, for the actions that name a page."""
+    return {**body, "rel": page_rel(body.get("rel"))} if name in names else body
 
 
 def need(body: dict, *keys: str) -> list:
@@ -236,6 +259,7 @@ class Workshop:
         """One action; Unknown if it does not exist, Busy while a job runs unless it only reads."""
         if action not in self._actions:
             raise Unknown(action)
+        body = _checked(action, PAGE_ACTIONS, body)
         run = self._actions[action]
         if action not in READS_ONLY and self.job.running():
             raise Busy()
@@ -298,6 +322,7 @@ class Workshop:
     def _rework(self, body: dict):
         model = _ai()  # the engine is checked first, as the legacy server did
         rel, instruction = need(body, "rel", "instruction")
+        rel = page_rel(rel)
         return lambda: revision.rework(self.root, rel, instruction, model, log._user())["title"]
 
     def _start_batch(self, _body: dict) -> dict:
