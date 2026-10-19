@@ -25,6 +25,7 @@ except ImportError as exc:
 from . import i18n
 from . import intake
 from . import service
+from . import settings
 
 API_VERSION = 1  # bumped when a route is added or changes; the host checks it
 MAX_BODY = 2_000_000
@@ -59,17 +60,33 @@ router = APIRouter(prefix="/api/amanuense", tags=["amanuense"], route_class=_Rou
 
 
 def install(app: FastAPI, workspace: Path | str, *, vault: Path | None = None, on_vault_changed=None,
-            lang: str | None = None) -> service.Workshop:
+            lang: str | None = None, settings_notes=None) -> service.Workshop:
     """Serve the workshop at `workspace` from `app`. One workshop per app; nothing is written to it."""
     folder = Path(workspace)
     if not folder.is_dir():
         raise FileNotFoundError(f"workshop folder not found: {folder}")
-    if getattr(app.state, "amanuense", None) is not None:
-        raise RuntimeError("amanuense is already installed in this app")
+    _claim(app)
+    app.state.amanuense_notes = settings_notes
     _security(app)
     app.state.amanuense = service.Workshop(folder, lang, init=False, vault=vault, on_vault_changed=on_vault_changed)
     app.include_router(router)
     return app.state.amanuense
+
+
+def install_settings(app: FastAPI, *, settings_notes=None) -> None:
+    """Reduced install: only `/session` and the settings routes, with no workshop (to fix a bad workspace)."""
+    _claim(app)
+    app.state.amanuense_reduced = True
+    app.state.amanuense_notes = settings_notes
+    _security(app)
+    reduced = APIRouter(route_class=_Route)  # the routes already carry the full path
+    reduced.routes.extend(r for r in router.routes if r.path in _REDUCED)
+    app.include_router(reduced)
+
+
+def _claim(app: FastAPI) -> None:
+    if getattr(app.state, "amanuense", None) is not None or getattr(app.state, "amanuense_reduced", False):
+        raise RuntimeError("amanuense is already installed in this app")
 
 
 def _security(app: FastAPI) -> str:
@@ -172,3 +189,42 @@ def task(rel: str = "", ws: service.Workshop = Depends(_ws)) -> dict:
 @router.post("/preview")
 async def preview(body: dict = Depends(_limit(MAX_BODY)), ws: service.Workshop = Depends(_ws)) -> dict:
     return await run_in_threadpool(ws.act, "preview", body)
+
+
+# ── Settings: the same routes with a workshop and in the reduced install ────────
+
+_REDUCED = frozenset(f"/api/amanuense{p}" for p in ("/session", "/settings", "/settings/test", "/settings/forget"))
+
+
+def _listing(request: Request) -> dict:
+    notes = getattr(request.app.state, "amanuense_notes", None)
+    return {"config_file": str(settings.config_dir() / settings.FILE), "revision": settings.revision(),
+            "fields": settings.fields(notes=notes() if notes else {})}
+
+
+@router.get("/settings")
+def settings_get(request: Request) -> dict:
+    return _listing(request)
+
+
+@mutating("/settings")
+def settings_post(request: Request, body: dict = Depends(_limit(MAX_BODY))) -> dict:
+    values, revision = body.get("values"), body.get("revision")
+    if not isinstance(values, dict) or not (revision is None or isinstance(revision, str)):
+        raise ValueError("bad request")
+    warnings = settings.update(values, revision=revision)["warnings"]
+    return {**_listing(request), "warnings": warnings}
+
+
+@mutating("/settings/forget")
+def settings_forget(request: Request, body: dict = Depends(_limit(MAX_BODY))) -> dict:
+    names = body.get("fields")
+    if names is not None and not (isinstance(names, list) and all(isinstance(n, str) for n in names)):
+        raise ValueError("bad request")
+    settings.forget(names)  # absent means every secret; an empty list means none
+    return _listing(request)
+
+
+@mutating("/settings/test", busy=False)
+def settings_test() -> dict:
+    return {"user": service._client().me()}

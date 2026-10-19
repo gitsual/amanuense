@@ -95,6 +95,10 @@ def error_status(exc: Exception) -> tuple[int, dict]:
         return 409, {"error": str(exc)}
     if isinstance(exc, intake.TooBig):
         return 413, {"error": str(exc)}
+    if isinstance(exc, settings.Invalid):
+        return 400, {"error": str(exc), "fields": exc.fields}
+    if isinstance(exc, settings.Conflict):
+        return 409, {"error": str(exc), "revision": exc.revision}
     if isinstance(exc, (mind.MindError, ValueError, FileNotFoundError)):
         return 400, {"error": str(exc)}
     traceback.print_exc()
