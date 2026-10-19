@@ -26,7 +26,7 @@ def _python(code: str) -> subprocess.CompletedProcess:
 
 def test_pyproject_declares_the_fastapi_extra_and_keeps_the_core_dependency_free():
     meta = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
-    assert meta["project"]["version"] == "0.2.0"
+    assert meta["project"]["version"] == "0.3.0"
     assert meta["project"]["dependencies"] == []
     extras = meta["project"]["optional-dependencies"]
     assert extras["fastapi"] == ["fastapi>=0.115"]
@@ -108,7 +108,7 @@ def blocking(monkeypatch):
 def test_install_exposes_the_workshop_and_the_api_version(host):
     from amanuense import api, service
     app, folder, _client = host
-    assert api.API_VERSION == 1
+    assert api.API_VERSION == 2
     assert isinstance(app.state.amanuense, service.Workshop) and app.state.amanuense.root == folder.resolve()
 
 

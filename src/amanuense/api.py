@@ -27,7 +27,7 @@ from . import intake
 from . import service
 from . import settings
 
-API_VERSION = 1  # bumped when a route is added or changes; the host checks it
+API_VERSION = 2  # bumped when a route is added or changes; the host checks it
 MAX_BODY = 2_000_000
 LOOPBACK = frozenset({"127.0.0.1", "localhost", "::1"})  # Host names the token routes answer to
 MUTATING: dict[str, bool] = {}  # mutating route path (below the prefix) -> waits for a running job
