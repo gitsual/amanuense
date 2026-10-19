@@ -759,6 +759,10 @@ la IA dice qué página tocar, qué cambiar y por qué, y prepara su tarea.
     "vault_no_export": {"en": "no .docx export in {folder}", "es": "no hay ningún export .docx en {folder}"},
     "vault_exists": {"en": "{folders} already exist in the vault; use --force to rebuild them",
                      "es": "{folders} ya existen en el vault; usa --force para regenerarlos"},
+    "vault_overlap": {"en": "the vault ({vault}) and the workshop ({workshop}) must be separate folders: "
+                            "neither can be, contain or sit inside the other",
+                      "es": "el vault ({vault}) y el taller ({workshop}) deben ser carpetas separadas: "
+                            "ninguna puede ser, contener ni estar dentro de la otra"},
     # ── command line ──
     "cli_description": {"en": "amanuense — workshop to rewrite and update Confluence pages. Non-destructive.",
                         "es": "amanuense — taller para reescribir y actualizar páginas de Confluence. No destructivo."},

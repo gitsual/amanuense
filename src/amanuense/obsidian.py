@@ -13,9 +13,11 @@ Uso:
 """
 from __future__ import annotations
 
+import os
 import posixpath
 import re
 import shutil
+import tempfile
 import zipfile
 import xml.etree.ElementTree as ET
 from pathlib import Path
@@ -180,6 +182,36 @@ def export_to_vault(export: Path, vault: Path, force: bool = False) -> dict:
 MIND_DIR = "MIND"
 
 
+def check_vault(workshop: Path, vault: Path) -> None:
+    """A vault that is the workshop, lies inside it or contains it would have its own sources
+    deleted by a rebuild: refuse it (real paths, so links and `..` do not hide the overlap)."""
+    w, v = Path(workshop).resolve(), Path(vault).resolve()
+    if w == v or w in v.parents or v in w.parents:
+        raise ValueError(i18n.t("vault_overlap", vault=v, workshop=w))
+
+
+def _swap(vault: Path, work: Path, old: list[str], new: list[str]) -> None:
+    """Moves the old subtrees aside, the new ones in, and only then drops the old; a failure
+    on the way puts every old subtree back."""
+    aside = work / ".old"
+    aside.mkdir()
+    moved: list[str] = []
+    placed: list[str] = []
+    try:
+        for name in old:
+            os.replace(vault / name, aside / name)
+            moved.append(name)
+        for name in new:
+            os.replace(work / name, vault / name)
+            placed.append(name)
+    except BaseException:
+        for name in placed:
+            shutil.rmtree(vault / name, ignore_errors=True)
+        for name in moved:
+            os.replace(aside / name, vault / name)
+        raise
+
+
 def workshop_to_vault(workshop: Path, vault: Path, force: bool = False) -> dict:
     """The whole workshop as a vault: MIND from the newest export, plus copies of
     the local docs and the bible. Only those three subtrees are rebuilt; anything
@@ -190,15 +222,22 @@ def workshop_to_vault(workshop: Path, vault: Path, force: bool = False) -> dict:
         raise FileNotFoundError(i18n.t("vault_no_export", folder=workshop / i18n.name("export")))
     targets = {MIND_DIR: None, i18n.name("local"): workshop / i18n.name("local"),
                i18n.name("bible"): workshop / i18n.name("bible")}
+    check_vault(workshop, vault)
     existing = [name for name in targets if (vault / name).exists()]
     if existing and not force:
         raise FileExistsError(i18n.t("vault_exists", folders=", ".join(existing)))
-    for name in existing:
-        shutil.rmtree(vault / name)
-    done = export_to_vault(exports[-1], vault / MIND_DIR, force=True)
-    copied = 0
-    for name, src in targets.items():
-        if src is not None and src.is_dir():
-            shutil.copytree(src, vault / name)
-            copied += 1
+    vault.mkdir(parents=True, exist_ok=True)
+    # Everything is built beside the old subtrees; they are only replaced once all of it exists.
+    work = Path(tempfile.mkdtemp(prefix=".amanuense-new-", dir=vault))
+    try:
+        done = export_to_vault(exports[-1], work / MIND_DIR, force=True)
+        built = [MIND_DIR]
+        for name, src in targets.items():
+            if src is not None and src.is_dir():
+                shutil.copytree(src, work / name)
+                built.append(name)
+        _swap(vault, work, existing, built)
+    finally:
+        shutil.rmtree(work, ignore_errors=True)
+    copied = len(built) - 1
     return {**done, "copied": copied, "vault": vault, "export": exports[-1]}

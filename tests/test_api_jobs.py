@@ -342,3 +342,57 @@ def test_no_vault_configured_is_a_400(host):
     assert client.post(f"{BASE}/vault", json={"confirm": True}, headers=h).status_code == 400
     assert client.get(f"{BASE}/job").json()["name"] == ""
 
+
+
+@pytest.mark.parametrize("where", ["equal", "inside", "contains"])
+def test_a_vault_overlapping_the_workshop_is_a_400_before_any_job_and_deletes_nothing(tmp_path, monkeypatch, where):
+    from amanuense import obsidian
+    ran = []
+    monkeypatch.setattr(obsidian, "workshop_to_vault", lambda *a, **k: ran.append(a))
+    folder = _ready(tmp_path, "# Convenciones\n\nTexto.\n")
+    vault = {"equal": folder, "inside": folder / "notes" / "vault", "contains": tmp_path}[where]
+    spy = Spy()
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+    from amanuense import api
+    monkeypatch.setenv("AMANUENSE_CONFIG_DIR", str(tmp_path / "cfg"))
+    app = FastAPI()
+    api.install(app, folder, vault=vault, on_vault_changed=spy)
+    client = TestClient(app, base_url=LOCAL)
+    h = {HEADER: client.get(f"{BASE}/session").json()["token"]}
+    before = sorted(p for p in tmp_path.rglob("*") if p.is_file())
+    assert client.post(f"{BASE}/vault", json={"confirm": True}, headers=h).status_code == 400
+    assert client.get(f"{BASE}/job").json()["name"] == ""
+    assert not ran and not spy.calls and sorted(p for p in tmp_path.rglob("*") if p.is_file()) == before
+    assert not (folder / "notes").exists()
+
+
+def test_the_real_generator_failing_keeps_the_vault_and_reports_the_error(tmp_path, monkeypatch):
+    from amanuense import obsidian
+    _a, folder, client, h = _build(tmp_path, monkeypatch, vault=tmp_path / "v")
+    export = folder / i18n.name("export")
+    export.mkdir(parents=True, exist_ok=True)
+    (export / "Broken.docx").write_bytes(b"not a zip")
+    old = tmp_path / "v" / "MIND"
+    old.mkdir(parents=True)
+    (old / "old.md").write_bytes(b"# old\n")
+    assert client.post(f"{BASE}/vault", json={"confirm": True}, headers=h).status_code == 200
+    done = _finished(client)
+    assert done["error"] and done["result"] is None
+    assert (old / "old.md").read_bytes() == b"# old\n"
+    assert sorted(p.name for p in (tmp_path / "v").iterdir()) == ["MIND"]
+
+
+def test_a_delivery_zip_that_is_a_link_out_of_the_workshop_is_a_404(host, tmp_path):
+    _a, folder, client, _h = host
+    secret = tmp_path / "secret.zip"
+    secret.write_bytes(b"PK\x03\x04TOP SECRET")
+    out = folder / i18n.name("out")
+    out.mkdir(parents=True, exist_ok=True)
+    link = out / f'{i18n.name("delivery")}-2026-10-19.zip'
+    try:
+        link.symlink_to(secret)
+    except OSError:
+        pytest.skip("symlinks are not available")
+    got = client.get(f"{BASE}/artifact/delivery")
+    assert got.status_code == 404 and b"SECRET" not in got.content

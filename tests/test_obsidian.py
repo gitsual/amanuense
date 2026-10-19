@@ -3,6 +3,8 @@ import sys
 import zipfile
 from pathlib import Path
 
+import pytest
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from amanuense import obsidian  # noqa: E402
@@ -157,3 +159,68 @@ def test_cli_obsidian_accepts_a_workshop(tmp_path, capsys):
     taller.main(["obsidian", str(_workshop(tmp_path)), str(tmp_path / "vault")])
     out = capsys.readouterr().out
     assert "8" in out and str(tmp_path / "vault") in out
+
+
+# ── a vault must never overlap the workshop, and a failed rebuild keeps the old one ──
+
+def _snapshot(folder):
+    return {str(p.relative_to(folder)): p.read_bytes() for p in sorted(folder.rglob("*")) if p.is_file()}
+
+
+def _overlaps(tmp_path):
+    ws = _workshop(tmp_path)
+    (ws / "inside").mkdir()
+    return ws, {"equal": ws, "inside": ws / "inside" / "vault", "contains": tmp_path}
+
+
+@pytest.mark.parametrize("where", ["equal", "inside", "contains"])
+def test_a_vault_that_overlaps_the_workshop_is_refused_and_nothing_is_deleted(tmp_path, where):
+    ws, vaults = _overlaps(tmp_path)
+    before = _snapshot(tmp_path)
+    with pytest.raises(ValueError):
+        obsidian.workshop_to_vault(ws, vaults[where], force=True)
+    assert _snapshot(tmp_path) == before
+
+
+def test_a_vault_reached_through_a_symlink_to_the_workshop_is_refused(tmp_path):
+    ws = _workshop(tmp_path)
+    link = tmp_path / "alias"
+    try:
+        link.symlink_to(ws, target_is_directory=True)
+    except OSError:
+        pytest.skip("symlinks are not available")
+    before = _snapshot(ws)
+    with pytest.raises(ValueError):
+        obsidian.workshop_to_vault(ws, link, force=True)
+    assert _snapshot(ws) == before
+
+
+def test_a_failed_rebuild_leaves_the_old_vault_byte_identical_and_no_temp_dirs(tmp_path, monkeypatch):
+    ws, vault = _workshop(tmp_path), tmp_path / "vault"
+    obsidian.workshop_to_vault(ws, vault)
+    (vault / ".obsidian").mkdir()
+    (vault / ".obsidian" / "app.json").write_text("{}", encoding="utf-8")
+    before = _snapshot(vault)
+    names = sorted(p.name for p in vault.iterdir())
+
+    def boom(*_a, **_k):
+        raise RuntimeError("broken docx")
+    monkeypatch.setattr(obsidian, "export_to_vault", boom)
+    with pytest.raises(RuntimeError, match="broken docx"):
+        obsidian.workshop_to_vault(ws, vault, force=True)
+    assert _snapshot(vault) == before
+    assert sorted(p.name for p in vault.iterdir()) == names, "no temporary folder is left behind"
+
+
+def test_a_failed_copy_also_keeps_the_old_vault(tmp_path, monkeypatch):
+    ws, vault = _workshop(tmp_path), tmp_path / "vault"
+    obsidian.workshop_to_vault(ws, vault)
+    before = _snapshot(vault)
+
+    def boom(*_a, **_k):
+        raise OSError("disk full")
+    monkeypatch.setattr(obsidian.shutil, "copytree", boom)
+    with pytest.raises(OSError):
+        obsidian.workshop_to_vault(ws, vault, force=True)
+    assert _snapshot(vault) == before
+    assert {p.name for p in vault.iterdir()} == {key.split("/")[0] for key in before}

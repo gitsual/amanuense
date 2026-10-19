@@ -378,6 +378,7 @@ class Workshop:
             raise ValueError(i18n.t("ui_missing", fields="confirm"))
         if self.vault is None:
             raise ValueError("no vault folder is configured")
+        obsidian.check_vault(self.root, Path(self.vault))  # before any job: a rebuild would delete the sources
         vault, notify = Path(self.vault), self.on_vault_changed
 
         def work() -> dict:
