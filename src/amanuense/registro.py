@@ -460,7 +460,7 @@ def _solve_side(out: Path, entries: list[dict], by_title: dict, ai: Ai, template
         try:
             write()
         except Exception as exc:  # one failing task must not stop the rest
-            errors.append(f"{rel}: {exc}")
+            errors.append(scrub_url(f"{rel}: {exc}"))
 
     proposals: dict[str, str] = {}
     for e in entries:
@@ -540,12 +540,16 @@ def _user() -> str:
     return settings.value("user")  # AMANUENSE_USER > settings.json > USERNAME/USER
 
 
-_USERINFO = re.compile(r"(?<=://)[^/\s@]*@")
+# Userinfo runs up to the LAST `@` of the authority, so a password holding `@` or `/` cannot leak.
+_USERINFO = re.compile(r"(?<=://)[^\s?#]*@")
+_SECRET_PARAM = re.compile(r"(?<=[?&#])((?:access_token|private_token|token|password|key|secret|auth)=)[^&#\s]*",
+                           re.IGNORECASE)
 
 
 def scrub_url(text: str) -> str:
-    """The text without `user:password@` / `user@` in its URLs: the log is served without a token."""
-    return _USERINFO.sub("", str(text))
+    """The text without `user:password@` / `user@` in its URLs and without the value of secret-looking
+    query/fragment parameters: the log is served without a token."""
+    return _SECRET_PARAM.sub(r"\1***", _USERINFO.sub("", str(text)))
 
 
 def update_log(root: Path, exports: list[Path], pages: list[Page], ready: dict[str, kit.Task],
@@ -583,7 +587,7 @@ def update_log(root: Path, exports: list[Path], pages: list[Page], ready: dict[s
                 try:
                     versions = history.changes(change.title, since=snap["created"])
                 except Exception as exc:  # no network or no permission: keep the "what"
-                    errors.append(f"Confluence ({change.title}): {exc}")
+                    errors.append(scrub_url(f"Confluence ({change.title}): {exc}"))
             authors = list(dict.fromkeys(v["by"] for v in versions))
             add({"id": _id("confluence", change.title, snap["created"], created), "kind": "confluence",
                  "when": versions[0]["when"] if versions else created, "page": change.title,
@@ -629,7 +633,7 @@ def update_log(root: Path, exports: list[Path], pages: list[Page], ready: dict[s
         try:
             route = route_request(req, pages, router)
         except Exception as exc:
-            errors.append(i18n.t("err_request", by=req["by"], error=exc))
+            errors.append(scrub_url(i18n.t("err_request", by=req["by"], error=exc)))
             continue
         entry = {"id": req["id"], "kind": "peticion", "when": _now(), "by": req["by"], "request": req["text"],
                  "page": route["pagina"], "cambio": route["cambio"], "motivo": route["motivo"], "task": ""}
