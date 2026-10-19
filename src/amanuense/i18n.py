@@ -14,6 +14,8 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
+from . import settings
+
 LANGS = ("en", "es")
 DEFAULT = "en"
 _current = DEFAULT
@@ -834,5 +836,7 @@ def detect(root: Path | None) -> str | None:
 
 
 def choose(root: Path | None = None, lang: str | None = None, env=os.environ) -> str:
-    """Pick and switch to the language: the workshop's own, then `lang`, then AMANUENSE_LANG, then English."""
-    return use(detect(root) or lang or env.get("AMANUENSE_LANG") or DEFAULT)
+    """Pick and switch to the language: the workshop's own, then `lang`, then AMANUENSE_LANG, then
+    settings.json, then English."""
+    saved = settings.value("lang", env)
+    return use(detect(root) or lang or (saved if saved in LANGS else DEFAULT))

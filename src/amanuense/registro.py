@@ -34,7 +34,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Callable
 
-from . import i18n
+from . import i18n, settings
 from . import taller as kit
 from .confluence import Page, _slug, normalize_title
 
@@ -537,7 +537,7 @@ def _now() -> str:
 
 
 def _user() -> str:
-    return os.environ.get("AMANUENSE_USER") or os.environ.get("USERNAME") or os.environ.get("USER") or "?"
+    return settings.value("user")  # AMANUENSE_USER > settings.json > USERNAME/USER
 
 
 def update_log(root: Path, exports: list[Path], pages: list[Page], ready: dict[str, kit.Task],

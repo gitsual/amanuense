@@ -235,3 +235,19 @@ def test_cli_prints_the_effective_value(home):
                          capture_output=True, text=True)
     assert run.returncode == 0 and run.stdout.strip() == ABS
 
+
+
+def test_user_lang_and_ai_key_read_through_the_resolver(home, monkeypatch):
+    from amanuense import i18n, registro, taller
+    settings.update({"user": "from-file", "lang": "es", "ai_url": "http://x.example", "ai_model": "m",
+                     "ai_key": "sk-file"})
+    monkeypatch.delenv("AMANUENSE_USER", raising=False)
+    monkeypatch.setattr(i18n, "_current", i18n._current)  # restored after choose() switches it
+    assert registro._user() == "from-file"
+    monkeypatch.setenv("AMANUENSE_USER", "from-env")
+    assert registro._user() == "from-env"
+    assert i18n.choose(None, None, {}) == "es"
+    seen = []
+    monkeypatch.setattr(taller, "openai_client", lambda url, model, key: seen.append(key))
+    settings.ai_client()
+    assert seen == ["sk-file"]
