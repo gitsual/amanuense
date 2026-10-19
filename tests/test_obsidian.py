@@ -224,3 +224,26 @@ def test_a_failed_copy_also_keeps_the_old_vault(tmp_path, monkeypatch):
         obsidian.workshop_to_vault(ws, vault, force=True)
     assert _snapshot(vault) == before
     assert {p.name for p in vault.iterdir()} == {key.split("/")[0] for key in before}
+
+
+def test_a_failed_rollback_keeps_the_old_data_and_says_where(tmp_path, monkeypatch):
+    ws, vault = _workshop(tmp_path), tmp_path / "vault"
+    obsidian.workshop_to_vault(ws, vault)
+    marker = vault / "MIND" / "Mine.md"
+    marker.write_text("precious\n", encoding="utf-8")
+    real = obsidian.os.replace
+
+    def flaky(src, dst):
+        parts = Path(src).parts
+        if ".old" in parts:  # rollback: aside -> vault
+            raise OSError("rollback denied")
+        if Path(src).parent.name.startswith(".amanuense-new-"):  # placing the new subtrees
+            raise OSError("place denied")
+        return real(src, dst)
+    monkeypatch.setattr(obsidian.os, "replace", flaky)
+    with pytest.raises(OSError, match=r"\.amanuense-new-") as info:
+        obsidian.workshop_to_vault(ws, vault, force=True)
+    assert "rollback denied" in str(info.value) or "place denied" in str(info.value)
+    kept = [p for p in vault.rglob("Mine.md")]
+    assert kept and kept[0].read_text(encoding="utf-8") == "precious\n"
+    assert ".old" in kept[0].parts

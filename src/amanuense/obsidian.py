@@ -190,6 +190,10 @@ def check_vault(workshop: Path, vault: Path) -> None:
         raise ValueError(i18n.t("vault_overlap", vault=v, workshop=w))
 
 
+class RollbackError(OSError):
+    """The swap failed and putting the old subtrees back failed too: they are kept aside."""
+
+
 def _swap(vault: Path, work: Path, old: list[str], new: list[str]) -> None:
     """Moves the old subtrees aside, the new ones in, and only then drops the old; a failure
     on the way puts every old subtree back."""
@@ -204,11 +208,18 @@ def _swap(vault: Path, work: Path, old: list[str], new: list[str]) -> None:
         for name in new:
             os.replace(work / name, vault / name)
             placed.append(name)
-    except BaseException:
+    except BaseException as exc:
         for name in placed:
             shutil.rmtree(vault / name, ignore_errors=True)
+        stuck: list[str] = []
         for name in moved:
-            os.replace(aside / name, vault / name)
+            try:
+                os.replace(aside / name, vault / name)
+            except OSError:
+                stuck.append(name)
+        if stuck:  # `aside` is the only copy of these: it must survive
+            raise RollbackError(f"{exc}; rollback failed, the old {', '.join(stuck)} "
+                                f"{'is' if len(stuck) == 1 else 'are'} kept in {aside}") from exc
         raise
 
 
@@ -237,7 +248,11 @@ def workshop_to_vault(workshop: Path, vault: Path, force: bool = False) -> dict:
                 shutil.copytree(src, work / name)
                 built.append(name)
         _swap(vault, work, existing, built)
-    finally:
+    except RollbackError:
+        raise  # `work/.old` holds the only copy of the old subtrees: keep it
+    except BaseException:
         shutil.rmtree(work, ignore_errors=True)
+        raise
+    shutil.rmtree(work, ignore_errors=True)
     copied = len(built) - 1
     return {**done, "copied": copied, "vault": vault, "export": exports[-1]}
