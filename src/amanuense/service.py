@@ -91,6 +91,14 @@ def check_token(expected: str, given: str | None) -> bool:
     return hmac.compare_digest(expected.encode(), (given or "").encode())
 
 
+class Coded(ValueError):
+    """A 400 that also carries a stable machine-readable `code` next to its localised message."""
+
+    def __init__(self, code: str, message: str):
+        super().__init__(message)
+        self.code = code
+
+
 def error_status(exc: Exception) -> tuple[int, dict]:
     """The HTTP status and JSON body every transport answers with for a failed call."""
     if isinstance(exc, Busy):
@@ -105,6 +113,8 @@ def error_status(exc: Exception) -> tuple[int, dict]:
         return 400, {"error": str(exc), "fields": exc.fields}
     if isinstance(exc, settings.Conflict):
         return 409, {"error": str(exc), "revision": exc.revision}
+    if isinstance(exc, Coded):
+        return 400, {"error": str(exc), "code": exc.code}
     if isinstance(exc, (mind.MindError, ValueError, FileNotFoundError)):
         return 400, {"error": str(exc)}
     traceback.print_exc()
@@ -172,7 +182,7 @@ def summary(result: dict) -> dict:
 def _client():
     c = settings.mind_client()
     if not c:
-        raise ValueError(i18n.t("ui_mind_not_configured"))
+        raise Coded("mind_not_configured", i18n.t("ui_mind_not_configured"))
     return c
 
 

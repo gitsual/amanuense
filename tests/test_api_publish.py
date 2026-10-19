@@ -254,3 +254,21 @@ def test_publishing_waits_while_a_job_runs_but_a_preflight_still_reads(host, blo
     assert not client.get(f"{BASE}/job").json()["running"], "the job did not finish"
     assert blocking.waited == [True]  # the job was released by the test, not by the gate timing out
     assert client.post(f"{BASE}/publish", json={"rel": UPDATE}, headers=h).status_code == 200
+
+
+@pytest.mark.parametrize("route", ["/preflight", "/publish"])
+def test_an_unconfigured_mind_answers_400_with_a_stable_code(host, monkeypatch, route):
+    _, _, client, h, _ = host
+    monkeypatch.setattr(settings, "mind_client", lambda: None)
+    got = client.post(f"{BASE}{route}", json={"rel": UPDATE}, headers=h)
+    assert got.status_code == 400
+    body = got.json()
+    assert body["code"] == "mind_not_configured"
+    assert body["error"]
+
+
+def test_other_400s_carry_no_code(host):
+    _, _, client, h, _ = host
+    got = client.post(f"{BASE}/preflight", json={}, headers=h)
+    assert got.status_code == 400
+    assert "code" not in got.json()
