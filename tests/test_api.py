@@ -26,7 +26,7 @@ def _python(code: str) -> subprocess.CompletedProcess:
 
 def test_pyproject_declares_the_fastapi_extra_and_keeps_the_core_dependency_free():
     meta = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
-    assert meta["project"]["version"] == "0.3.0"
+    assert meta["project"]["version"] == "0.4.0"
     assert meta["project"]["dependencies"] == []
     extras = meta["project"]["optional-dependencies"]
     assert extras["fastapi"] == ["fastapi>=0.115"]
