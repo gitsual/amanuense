@@ -212,9 +212,27 @@ has a workshop. It never writes to the folder. The router only **reads**: `GET /
 with the same status codes as the review app. It has no route to stop the process or to open a local
 program, and `rel` values that leave the workshop are refused.
 
+### Settings from the web app
+
+The router also serves the app's Settings: `GET /settings` (fields, `config_file`, `revision`),
+`POST /settings` (`{values, revision?}`), `POST /settings/forget` (`{fields?}`; no `fields` removes every
+stored secret) and `POST /settings/test` (the MIND user). Every POST needs the token from `GET /session`;
+saving and forgetting wait while a job runs. Each key is resolved as **environment variable, then
+`settings.json`, then default**; a key set in the environment is shown read-only and refused on save.
+`settings.json` lives in `config_file`: `%APPDATA%\amanuense` on Windows, `~/.config/amanuense` elsewhere
+(or `AMANUENSE_CONFIG_DIR`). Passing the `revision` you read makes a save fail with 409 if the file
+changed meanwhile; leaving it out is last-writer-wins.
+
+If the workshop folder is wrong the router cannot start, so a host can call
+`api.install_settings(app)` instead: it mounts only `/session` and the settings routes, enough to fix
+`workspace`. To recover without the web app, edit `config_file` (or set `AMANUENSE_WORKSPACE`; for a host
+switched off with `documentation_enabled=false`, remove that key or set `OBSIDIAN_SEARCH_DOCUMENTATION=1`).
+Downgrading to an older amanuense keeps working, but its next save drops the keys added in version 2
+(workspace, language, author, AI key and the host's search keys).
+
 `amanuense.api.API_VERSION` is a plain integer that grows whenever a route is added or changes; a host
 compares it with the version it was written for and hides the integration when it is lower. This release
-is version 1. To turn the labels of the review screens into a host's locale files, see
+is version 2. To turn the labels of the review screens into a host's locale files, see
 `scripts/export_ui_texts.py`.
 
 ## The change log
