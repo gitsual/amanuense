@@ -217,7 +217,7 @@ and `/promote` (`{rel}` of a set-aside task -> `{ok: true}`). It publishes to MI
 change nothing), `/undo` (409 when no publish from here was recorded) and `/mark-published` (`{rel, url}`
 for a page published by hand). It also takes documentation in:
 `POST /intake/plan` (`{files:[{path,size,sha256}]}`, up to 16 MB), `/intake/start` (-> `{batch, folder}`),
-`/intake/file?batch=&path=` (raw `application/octet-stream` body with `X-Content-SHA256`, streamed to disk),
+`/intake/file?batch=&path=` (raw `application/octet-stream` body with `X-Content-SHA256`, streamed to disk; `Content-Length` is required, 411 without a valid one, and the bytes received are counted: more than declared is 413, fewer is 400, nothing is kept),
 `/intake/cancel` (`{batch}`), `/intake/promote` (`{rel}`) and `POST /job` (`{name, batch?}` with `name` in
 `run`, `intake`, `radiator`, `deliver`, `rework`; poll `GET /job`). All need the token; all but the plan, the preflight and
 `/job` wait while a job runs (423). Errors are `{"error": "…"}`

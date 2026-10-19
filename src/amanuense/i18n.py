@@ -277,6 +277,8 @@ la IA dice qué página tocar, qué cambiar y por qué, y prepara su tarea.
     "intake_file_too_big": {"en": "«{path}» is bigger than {mb} MB.", "es": "«{path}» supera los {mb} MB."},
     "intake_batch_too_big": {"en": "The upload would go over {mb} MB: send it in parts.",
                              "es": "La carga superaría los {mb} MB: envíala por partes."},
+    "intake_body_longer": {"en": "The file is longer than its declared size: try again.",
+                           "es": "El archivo es más largo que su tamaño declarado: inténtalo otra vez."},
     "intake_incomplete": {"en": "«{path}» arrived incomplete: try again.", "es": "«{path}» ha llegado incompleto: inténtalo otra vez."},
     "intake_hash_mismatch": {"en": "«{path}» arrived damaged (its fingerprint does not match): try again.",
                              "es": "«{path}» ha llegado dañado (su huella no coincide): inténtalo otra vez."},

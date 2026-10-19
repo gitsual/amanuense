@@ -190,3 +190,145 @@ def test_the_job_route_only_runs_known_jobs_and_reports_busy(host, blocking):
     assert started.status_code == 200 and started.json()["running"] is True and started.json()["name"] == "run"
     assert client.post(f"{BASE}/job", json={"name": "run"}, headers=h).status_code == 423
     assert client.get(f"{BASE}/job").json()["running"] is True
+
+
+# ── The bytes that arrive are counted: Content-Length is only a claim ──────────
+
+def _raw(client, headers, batch, path, data, length=None, **extra):
+    """Posts `data` with an explicit Content-Length (None: chunked, so no header at all)."""
+    h = {**headers, "Content-Type": "application/octet-stream", **extra}
+    if length is None:
+        content = (data[i:i + 4] for i in range(0, len(data), 4)) if data else iter(())
+    else:
+        h["Content-Length"] = str(length)
+        content = data
+    return client.post(f"{BASE}/intake/file", params={"batch": batch, "path": path}, content=content, headers=h)
+
+
+def _leftovers(folder, batch):
+    return sorted(p.name for p in _dir(folder, batch).rglob("*"))
+
+
+def test_a_body_without_a_length_is_411_and_keeps_nothing(host):
+    _a, folder, client, h = host
+    batch = _start(client, h)
+    got = _raw(client, h, batch, "a.md", b"# A\nbody\n")  # chunked
+    assert got.status_code == 411 and got.json()["error"]
+    assert _leftovers(folder, batch) == []
+
+
+@pytest.mark.parametrize("length", ["abc", "-5", "1.5", ""])
+def test_a_malformed_length_is_411_and_keeps_nothing(host, length):
+    _a, folder, client, h = host
+    batch = _start(client, h)
+    got = _raw(client, h, batch, "a.md", b"# A\n", length=length)
+    assert got.status_code == 411
+    assert _leftovers(folder, batch) == []
+
+
+def test_more_bytes_than_declared_is_413_and_keeps_nothing(host):
+    _a, folder, client, h = host
+    batch = _start(client, h)
+    got = _raw(client, h, batch, "a.md", b"# A\n" + b"x" * 5000, length=4)
+    assert got.status_code == 413 and got.json()["error"]
+    assert _leftovers(folder, batch) == []
+    assert _put(client, h, batch, "b.md", b"# B\n").status_code == 200  # the quota was given back
+
+
+def test_fewer_bytes_than_declared_is_400_and_keeps_nothing(host):
+    _a, folder, client, h = host
+    batch = _start(client, h)
+    got = _raw(client, h, batch, "a.md", b"# A\n", length=5000)
+    assert got.status_code == 400 and got.json()["error"]
+    assert _leftovers(folder, batch) == []
+
+
+def test_a_declared_zero_with_a_body_is_413_and_an_honest_zero_is_stored(host):
+    _a, folder, client, h = host
+    batch = _start(client, h)
+    assert _raw(client, h, batch, "a.md", b"surprise", length=0).status_code == 413
+    assert _leftovers(folder, batch) == []
+    assert _raw(client, h, batch, "empty.md", b"", length=0).status_code == 200
+    assert _files(folder, batch) == ["empty.md"]
+
+
+def test_the_size_cap_counts_the_bytes_received_not_the_header(host, monkeypatch):
+    _a, folder, client, h = host
+    batch = _start(client, h)
+    monkeypatch.setattr(intake, "MAX_FILE_BYTES", 10)
+    got = _raw(client, h, batch, "big.md", b"x" * 500, length=5)  # claims 5, sends 500
+    assert got.status_code == 413
+    assert _leftovers(folder, batch) == []
+
+
+def test_a_successful_upload_leaves_no_part_file_and_no_open_handle(host):
+    import os
+    _a, folder, client, h = host
+    batch = _start(client, h)
+    assert _put(client, h, batch, "sub/a.md", b"# A\nbody\n").status_code == 200
+    assert _leftovers(folder, batch) == ["a.md", "sub"]
+    if os.path.isdir("/proc/self/fd"):
+        opened = []
+        for fd in os.listdir("/proc/self/fd"):
+            try:
+                opened.append(os.readlink(f"/proc/self/fd/{fd}"))
+            except OSError:
+                pass
+        assert not [p for p in opened if str(_dir(folder, batch)) in p]
+
+
+def test_a_client_that_drops_mid_upload_still_awaits_the_worker_and_leaves_nothing(host, monkeypatch):
+    import time
+    app, folder, client, h = host
+    batch = _start(client, h)
+    real, done = app.state.amanuense.upload, threading.Event()
+
+    def upload(*args):
+        try:
+            return real(*args)
+        finally:
+            time.sleep(0.3)
+            done.set()
+    monkeypatch.setattr(app.state.amanuense, "upload", upload)
+
+    def body():
+        yield b"# A\n" * 1000
+        raise ConnectionError("client went away")
+    headers = {**h, "Content-Type": "application/octet-stream", "Content-Length": "100000"}
+    try:
+        client.post(f"{BASE}/intake/file", params={"batch": batch, "path": "a.md"}, content=body(), headers=headers)
+    except Exception:
+        pass
+    assert done.is_set()  # the route did not return before its worker finished
+    assert _leftovers(folder, batch) == []
+
+
+def test_a_refused_media_type_drains_the_body(host):
+    _a, _f, client, h = host
+    batch = _start(client, h)
+    got = _put(client, h, batch, "a.md", b"x" * 100_000, **{"Content-Type": "text/plain"})
+    assert got.status_code == 415
+    assert client.get(f"{BASE}/state").status_code == 200
+
+
+# ── intake/promote over HTTP ───────────────────────────────────────────────────
+
+def test_promote_marks_an_uploaded_file_over_http(host):
+    _a, folder, client, h = host
+    batch = _start(client, h)
+    stored = _put(client, h, batch, "a.md", b"# A\nbody\n").json()["stored"]
+    got = client.post(f"{BASE}/intake/promote", json={"rel": stored}, headers=h)
+    assert got.status_code == 200 and got.json() == {"promoted": [stored]}
+    assert intake.promoted(folder) == [stored]
+
+
+@pytest.mark.parametrize("rel", ["../../etc/passwd", "{b}/../../outside.md", "{b}/../{b}/a.md", "/etc/passwd",
+                                 "{b}/missing.md", "plain.md"])
+def test_promote_refuses_a_path_that_escapes_or_is_not_an_upload(host, rel):
+    _a, folder, client, h = host
+    batch = _start(client, h)
+    _put(client, h, batch, "a.md", b"# A\n")
+    (folder / "outside.md").write_text("# out\n", encoding="utf-8")
+    got = client.post(f"{BASE}/intake/promote", json={"rel": rel.format(b=batch)}, headers=h)
+    assert got.status_code == 400 and got.json()["error"]
+    assert intake.promoted(folder) == []

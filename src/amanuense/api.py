@@ -10,6 +10,7 @@ It has no route to stop the process or to open a local program.
 from __future__ import annotations
 
 import asyncio
+import io
 import json
 import os
 import queue
@@ -284,26 +285,47 @@ def intake_promote(body: dict = Depends(_limit(MAX_BODY)), ws: service.Workshop 
 
 
 class _Pipe:
-    """A blocking `read(n)` over chunks handed in by the event loop; the end is `None`."""
+    """A blocking `read(n)` over chunks handed in by the event loop.
 
-    def __init__(self):
+    The end is `None`; an exception handed in is raised to the reader. `size` is the declared length:
+    the read that would deliver its last byte first waits for the end of the body, so a body longer
+    than declared (or a client that went away) fails before the worker commits anything.
+    """
+
+    def __init__(self, size: int = 0):
         self.chunks: queue.Queue = queue.Queue(maxsize=_CHUNKS)
+        self.size = size
+        self.sent = 0
         self.rest = b""
         self.ended = False
 
+    def _pull(self) -> None:
+        item = self.chunks.get()
+        if item is None:
+            self.ended = True
+        elif isinstance(item, BaseException):
+            self.ended = True
+            raise item
+        else:
+            self.rest += item
+
     def read(self, n: int) -> bytes:
         while len(self.rest) < n and not self.ended:
-            chunk = self.chunks.get()
-            if chunk is None:
-                self.ended = True
-            else:
-                self.rest += chunk
+            self._pull()
+        if self.sent + min(n, len(self.rest)) >= self.size:
+            while not self.ended:  # the declared bytes are all here: the body must end now
+                self._pull()
         out, self.rest = self.rest[:n], self.rest[n:]
+        self.sent += len(out)
         return out
 
 
-async def _feed(request: Request, pipe: _Pipe, worker: asyncio.Future) -> None:
-    """Hands the body to the worker chunk by chunk (never whole); stops early if the worker already finished (refused)."""
+async def _feed(request: Request, pipe: _Pipe, worker: asyncio.Future, limit: int) -> None:
+    """Hands the body to the worker chunk by chunk (never whole), counting what really arrives.
+
+    Past `limit` bytes the worker gets a `TooBig`; if the stream breaks it gets the error. Either way
+    the worker ends (and cleans up) instead of waiting. Stops early if the worker already finished.
+    """
     async def put(item) -> bool:
         while not worker.done():
             try:
@@ -312,25 +334,71 @@ async def _feed(request: Request, pipe: _Pipe, worker: asyncio.Future) -> None:
             except queue.Full:
                 await asyncio.sleep(0.002)
         return False
+    final, received = None, 0
     try:
         async for chunk in request.stream():
+            received += len(chunk)
+            if received > limit:
+                final = intake.TooBig(i18n.t("intake_body_longer"))
+                break
             if not await put(chunk):
                 break
-    finally:
-        await put(None)
+    except BaseException as exc:
+        final = intake.IntakeError(i18n.t("intake_incomplete", path="?"))
+        await put(final)
+        raise exc
+    await put(final)
+
+
+def _declared_length(request: Request) -> int | None:
+    """The Content-Length as a non-negative integer, or None when it is missing or malformed."""
+    raw = request.headers.get("content-length", "").strip()
+    return int(raw) if raw.isascii() and raw.isdigit() else None
+
+
+async def _drain(request: Request, limit: int = 8 * MAX_BODY) -> None:
+    """Reads a refused body away (up to a limit) so the client sees the answer, not a reset."""
+    seen = 0
+    async for chunk in request.stream():
+        seen += len(chunk)
+        if seen > limit:
+            break
 
 
 @mutating("/intake/file")
 async def intake_file(request: Request, batch: str = "", path: str = "", ws: service.Workshop = Depends(_ws)):
-    """One file of a pile, as it is: the raw body is streamed to disk as it arrives."""
+    """One file of a pile, as it is: the raw body is streamed to disk as it arrives.
+
+    `Content-Length` is required (411 when missing, chunked, or not a non-negative integer) and is
+    checked against the bytes that really arrive: more is 413, fewer is 400, and nothing is kept.
+    """
     if request.headers.get("content-type", "").split(";")[0].strip() != "application/octet-stream":
+        await _drain(request)
         return JSONResponse({"error": "application/octet-stream expected"}, status_code=415)
-    size = int(request.headers.get("content-length") or 0)
-    pipe = _Pipe()
-    worker = asyncio.ensure_future(run_in_threadpool(
-        ws.upload, batch, path, pipe, size, request.headers.get("x-content-sha256", "")))
-    await _feed(request, pipe, worker)
-    return {"stored": await worker}
+    size = _declared_length(request)
+    if size is None:
+        return JSONResponse({"error": "a valid Content-Length is required"}, status_code=411)
+    sha = request.headers.get("x-content-sha256", "")
+    if size == 0:  # nothing is read by the worker, so the body is checked first
+        async for chunk in request.stream():
+            if chunk:
+                raise intake.TooBig(i18n.t("intake_body_longer"))
+        return {"stored": await run_in_threadpool(ws.upload, batch, path, io.BytesIO(b""), 0, sha)}
+    pipe = _Pipe(size)
+    worker = asyncio.ensure_future(run_in_threadpool(ws.upload, batch, path, pipe, size, sha))
+    failure = None
+    try:
+        await _feed(request, pipe, worker, min(size, intake.MAX_FILE_BYTES))
+    except BaseException as exc:  # the client went away: the worker still ends and cleans up first
+        failure = exc
+    try:
+        stored = await worker
+    except BaseException:
+        if failure is None:
+            raise
+    if failure is not None:
+        raise failure
+    return {"stored": stored}
 
 
 @mutating("/job", busy=False)
