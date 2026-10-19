@@ -14,6 +14,7 @@ import io
 import json
 import os
 import queue
+import threading
 from pathlib import Path
 from urllib.parse import urlsplit
 
@@ -36,6 +37,7 @@ API_VERSION = 3  # bumped when a route is added or changes; the host checks it
 MAX_BODY = 2_000_000
 MAX_PLAN_BODY = 16_000_000  # the list of a big pile (path, size and hash of each file)
 _CHUNKS = 8  # request chunks held between the network and the disk
+_PULL_TIMEOUT = 5.0  # seconds the worker waits for a chunk before checking whether the feeder is gone
 LOOPBACK = frozenset({"127.0.0.1", "localhost", "::1"})  # Host names the token routes answer to
 MUTATING: dict[str, bool] = {}  # mutating route path (below the prefix) -> waits for a running job
 
@@ -298,9 +300,24 @@ class _Pipe:
         self.sent = 0
         self.rest = b""
         self.ended = False
+        self.closed = threading.Event()  # set by the feeder when it is done, whatever it queued
+
+    def close(self) -> None:
+        self.closed.set()
+
+    def _get(self):
+        while True:
+            try:
+                return self.chunks.get(timeout=_PULL_TIMEOUT)
+            except queue.Empty:
+                if self.closed.is_set():  # the feeder is gone and nothing more is queued
+                    try:
+                        return self.chunks.get_nowait()
+                    except queue.Empty:
+                        return intake.IntakeError(i18n.t("intake_incomplete", path="?"))
 
     def _pull(self) -> None:
-        item = self.chunks.get()
+        item = self._get()
         if item is None:
             self.ended = True
         elif isinstance(item, BaseException):
@@ -336,18 +353,21 @@ async def _feed(request: Request, pipe: _Pipe, worker: asyncio.Future, limit: in
         return False
     final, received = None, 0
     try:
-        async for chunk in request.stream():
-            received += len(chunk)
-            if received > limit:
-                final = intake.TooBig(i18n.t("intake_body_longer"))
-                break
-            if not await put(chunk):
-                break
-    except BaseException as exc:
-        final = intake.IntakeError(i18n.t("intake_incomplete", path="?"))
+        try:
+            async for chunk in request.stream():
+                received += len(chunk)
+                if received > limit:
+                    final = intake.TooBig(i18n.t("intake_body_longer"))
+                    break
+                if not await put(chunk):
+                    break
+        except BaseException as exc:
+            final = intake.IntakeError(i18n.t("intake_incomplete", path="?"))
+            await put(final)
+            raise exc
         await put(final)
-        raise exc
-    await put(final)
+    finally:
+        pipe.close()  # if `put(final)` never landed (cancelled), the worker still learns it must stop
 
 
 def _declared_length(request: Request) -> int | None:

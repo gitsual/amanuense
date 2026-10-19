@@ -261,20 +261,98 @@ def test_the_size_cap_counts_the_bytes_received_not_the_header(host, monkeypatch
     assert _leftovers(folder, batch) == []
 
 
-def test_a_successful_upload_leaves_no_part_file_and_no_open_handle(host):
-    import os
+def test_a_successful_upload_leaves_no_part_file(host):
     _a, folder, client, h = host
     batch = _start(client, h)
     assert _put(client, h, batch, "sub/a.md", b"# A\nbody\n").status_code == 200
     assert _leftovers(folder, batch) == ["a.md", "sub"]
-    if os.path.isdir("/proc/self/fd"):
-        opened = []
-        for fd in os.listdir("/proc/self/fd"):
-            try:
-                opened.append(os.readlink(f"/proc/self/fd/{fd}"))
-            except OSError:
-                pass
-        assert not [p for p in opened if str(_dir(folder, batch)) in p]
+
+
+def _open_under(folder, batch):
+    import os
+    opened = []
+    for fd in os.listdir("/proc/self/fd"):
+        try:
+            opened.append(os.readlink(f"/proc/self/fd/{fd}"))
+        except OSError:
+            pass
+    return [p for p in opened if str(_dir(folder, batch)) in p]
+
+
+_NO_PROC = pytest.mark.skipif(not __import__("os").path.isdir("/proc/self/fd"), reason="needs /proc/self/fd (Linux)")
+
+
+@_NO_PROC
+def test_a_successful_upload_leaves_no_open_handle(host):
+    _a, folder, client, h = host
+    batch = _start(client, h)
+    assert _put(client, h, batch, "sub/a.md", b"# A\nbody\n").status_code == 200
+    assert _open_under(folder, batch) == []
+
+
+@_NO_PROC
+def test_a_413_overrun_leaves_no_open_handle(host):
+    _a, folder, client, h = host
+    batch = _start(client, h)
+    assert _raw(client, h, batch, "a.md", b"# A\n" + b"x" * 5000, length=4).status_code == 413
+    assert _open_under(folder, batch) == []
+
+
+@_NO_PROC
+def test_a_400_short_body_leaves_no_open_handle(host):
+    _a, folder, client, h = host
+    batch = _start(client, h)
+    assert _raw(client, h, batch, "a.md", b"# A\n", length=5000).status_code == 400
+    assert _open_under(folder, batch) == []
+
+
+@_NO_PROC
+def test_a_worker_exception_leaves_no_open_handle(host, monkeypatch):
+    _a, folder, client, h = host
+    batch = _start(client, h)
+    real = intake.os.replace
+
+    def boom(*a, **k):
+        raise OSError("disk trouble")
+    monkeypatch.setattr(intake.os, "replace", boom)
+    try:
+        _put(client, h, batch, "a.md", b"# A\nbody\n")
+    except Exception:
+        pass
+    monkeypatch.setattr(intake.os, "replace", real)
+    assert _open_under(folder, batch) == []
+    assert _leftovers(folder, batch) == []
+
+
+def test_a_feeder_that_exits_without_the_terminal_item_does_not_hang_the_worker(host, monkeypatch):
+    from amanuense import api
+    app, folder, client, h = host
+    batch = _start(client, h)
+    monkeypatch.setattr(api, "_PULL_TIMEOUT", 0.05)
+    monkeypatch.setattr(intake, "MAX_BATCH_BYTES", 400)
+    real_feed = api._feed
+
+    async def feeder(request, pipe, worker, limit):  # as if cancelled before `put(final)` landed
+        try:
+            pipe.chunks.put_nowait(b"# A\n")
+        finally:
+            pipe.close()
+    monkeypatch.setattr(api, "_feed", feeder)
+    result = {}
+
+    def post():
+        try:
+            result["r"] = _raw(client, h, batch, "a.md", b"# A\n" * 100, length=400)
+        except Exception as exc:
+            result["e"] = exc
+    t = threading.Thread(target=post, daemon=True)
+    t.start()
+    t.join(10)
+    assert not t.is_alive()  # the worker ended on its own
+    assert "r" not in result or result["r"].status_code == 400
+    assert _leftovers(folder, batch) == []
+    monkeypatch.setattr(api, "_feed", real_feed)
+    assert _put(client, h, batch, "b.md", b"x" * 400).status_code == 200  # the dead upload's quota is back
 
 
 def test_a_client_that_drops_mid_upload_still_awaits_the_worker_and_leaves_nothing(host, monkeypatch):
