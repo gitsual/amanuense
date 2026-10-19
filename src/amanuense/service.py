@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import difflib
 import hmac
+import os
 import secrets
 import shutil
 import threading
@@ -19,6 +20,7 @@ from urllib.parse import urlsplit
 from . import i18n
 from . import intake
 from . import mind
+from . import obsidian
 from . import registro as log
 from . import revision
 from . import settings
@@ -208,6 +210,7 @@ class Workshop:
             "radiator": lambda body: lambda: str(kit.radiator_workspace(self.root)),
             "deliver": lambda body: lambda: str(kit.deliver_workspace(self.root, make_zip=True)),
             "rework": self._rework,
+            "vault": self.vault_job,  # not in JOBS: the router starts it through POST /vault
         }
         self._actions = self._build_actions()
 
@@ -267,6 +270,31 @@ class Workshop:
         if not path or not path.exists():
             raise ValueError(i18n.t("ui_nothing_to_open"))
         return path
+
+    def artifact(self, what: str) -> tuple[Path, str]:
+        """A file the web app may hand to the browser: `(path, kind)` with kind `html` or `zip`.
+
+        Only the log, the radiator and the newest delivery zip exist; a name outside that list, a missing
+        file or a file whose real path leaves the workshop is `Unknown` (404).
+        """
+        out = self.root / i18n.name("out")
+        if what == "log":
+            path, kind = out / i18n.name("log_html"), "html"
+        elif what == "radiator":
+            path, kind = out / "radiador" / "index.html", "html"
+        elif what == "delivery":
+            zips = sorted(out.glob(i18n.name("delivery") + "-*.zip"))
+            path, kind = (zips[-1] if zips else out / "none.zip"), "zip"
+        else:
+            raise Unknown(what)
+        try:
+            real = path.resolve(strict=True)
+            real.relative_to(self.root)
+        except (OSError, ValueError):
+            raise Unknown(what) from None
+        if not real.is_file():
+            raise Unknown(what)
+        return real, kind
 
     # writes
     def act(self, action: str, body: dict) -> dict:
@@ -338,6 +366,32 @@ class Workshop:
         rel, instruction = need(body, "rel", "instruction")
         rel = page_rel(rel)
         return lambda: revision.rework(self.root, rel, instruction, model, log._user())["title"]
+
+    def vault_job(self, body: dict):
+        """The vault rebuilt from the workshop (only MIND, local docs and bible are replaced).
+
+        Checked before any job starts: `confirm` must be the boolean `true` and a vault folder must be
+        configured. The job creates the folder, rebuilds, then tells the host once (`on_vault_changed`);
+        a host that fails to reindex does not undo the vault: the error comes back as `reindex_error`.
+        """
+        if body.get("confirm") is not True:
+            raise ValueError(i18n.t("ui_missing", fields="confirm"))
+        if self.vault is None:
+            raise ValueError("no vault folder is configured")
+        vault, notify = Path(self.vault), self.on_vault_changed
+
+        def work() -> dict:
+            self.job.progress("vault")
+            os.makedirs(vault, exist_ok=True)
+            done = obsidian.workshop_to_vault(self.root, vault, force=True)
+            result = {k: str(v) if isinstance(v, Path) else v for k, v in done.items()}
+            if notify is not None:
+                try:
+                    notify()
+                except Exception as exc:  # the vault is built; only the reindex failed
+                    result["reindex_error"] = str(exc) or exc.__class__.__name__
+            return result
+        return work
 
     def _start_batch(self, _body: dict) -> dict:
         batch = intake.new_batch(self.root)

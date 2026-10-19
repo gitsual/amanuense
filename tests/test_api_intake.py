@@ -183,8 +183,8 @@ def test_promote_needs_a_rel(host):
 
 def test_the_job_route_only_runs_known_jobs_and_reports_busy(host, blocking):
     app, _f, client, h = host
-    assert client.post(f"{BASE}/job", json={"name": "rm -rf"}, headers=h).status_code == 404
-    assert client.post(f"{BASE}/job", json={}, headers=h).status_code == 404
+    assert client.post(f"{BASE}/job", json={"name": "rm -rf"}, headers=h).status_code == 400
+    assert client.post(f"{BASE}/job", json={}, headers=h).status_code == 400
     assert client.post(f"{BASE}/job", json={"name": "intake"}, headers=h).status_code == 400  # no batch
     started = client.post(f"{BASE}/job", json={"name": "run"}, headers=h)
     assert started.status_code == 200 and started.json()["running"] is True and started.json()["name"] == "run"

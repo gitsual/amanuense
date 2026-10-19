@@ -3,7 +3,7 @@ api — the workshop as a FastAPI router, for a host that already serves a web a
 
 Optional: needs `pip install 'amanuense[fastapi]'`. The router reads (the review screens'
 state, a page, the job, a task, a Markdown preview), reviews (save, resolve, approve, reopen,
-discard, promote), takes documentation in (the intake routes and `POST /job`) and hands out the per-process session
+discard, promote), takes documentation in (the intake routes), runs the background jobs, serves their artifacts and rebuilds the vault and hands out the per-process session
 token that every mutating route requires; the host adds it with `install(app, workspace)`.
 It has no route to stop the process or to open a local program.
 """
@@ -21,7 +21,7 @@ from urllib.parse import urlsplit
 try:
     from fastapi import APIRouter, Depends, FastAPI, Request
     from fastapi.exceptions import RequestValidationError
-    from fastapi.responses import JSONResponse
+    from fastapi.responses import FileResponse, JSONResponse
     from fastapi.routing import APIRoute
     from starlette.exceptions import HTTPException
     from starlette.concurrency import run_in_threadpool
@@ -426,8 +426,29 @@ def job_start(body: dict = Depends(_limit(MAX_BODY)), ws: service.Workshop = Dep
     """Starts a background job from the fixed list; a second one while it runs is 423. Poll `GET /job`."""
     name = str(body.get("name", ""))
     if name not in service.JOBS:
-        return JSONResponse({"error": "unknown job"}, status_code=404)
+        raise ValueError("unknown job")
     return ws.start_job(name, body)
+
+
+@mutating("/vault")
+def vault_generate(body: dict = Depends(_limit(MAX_BODY)), ws: service.Workshop = Depends(_ws)):
+    """Rebuilds the vault as a background job; needs `{"confirm": true}`. Poll `GET /job` for the result."""
+    return ws.start_job("vault", body)
+
+
+_ARTIFACT_HEADERS = {"Content-Security-Policy": "sandbox; default-src 'none'; style-src 'unsafe-inline'",
+                     "X-Content-Type-Options": "nosniff", "Cache-Control": "no-store"}
+
+
+@router.get("/artifact/{what}")
+def artifact(request: Request, what: str, ws: service.Workshop = Depends(_ws)):
+    """The log or the radiator to open in a new tab (sandboxed, no scripts), or the delivery zip to save."""
+    if not _host_ok(request):
+        raise _Denied("host")
+    path, kind = ws.artifact(what)
+    if kind == "zip":
+        return FileResponse(path, media_type="application/zip", filename=path.name, headers=_ARTIFACT_HEADERS)
+    return FileResponse(path, media_type="text/html; charset=utf-8", headers=_ARTIFACT_HEADERS)
 
 
 # ── Settings: the same routes with a workshop and in the reduced install ────────

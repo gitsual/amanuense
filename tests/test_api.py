@@ -63,7 +63,8 @@ def test_the_router_has_no_way_to_stop_the_server_or_open_a_browser():
                      f"{BASE}/intake/plan", f"{BASE}/intake/start", f"{BASE}/intake/file", f"{BASE}/intake/cancel",
                      f"{BASE}/intake/promote", f"{BASE}/job", f"{BASE}/save", f"{BASE}/resolve",
                      f"{BASE}/approve", f"{BASE}/reopen", f"{BASE}/discard", f"{BASE}/promote",
-                     f"{BASE}/preflight", f"{BASE}/publish", f"{BASE}/undo", f"{BASE}/mark-published"}
+                     f"{BASE}/preflight", f"{BASE}/publish", f"{BASE}/undo", f"{BASE}/mark-published",
+                     f"{BASE}/vault", f"{BASE}/artifact/{{what}}"}
     source = (SRC / "amanuense" / "api.py").read_text(encoding="utf-8")
     assert "webbrowser" not in source and "shutdown" not in source and "/open" not in source
 

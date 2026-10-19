@@ -220,7 +220,13 @@ for a page published by hand). It also takes documentation in:
 `/intake/file?batch=&path=` (raw `application/octet-stream` body with `X-Content-SHA256`, streamed to disk; `Content-Length` is required, 411 without a valid one, and the bytes received are counted: more than declared is 413, fewer is 400, nothing is kept),
 `/intake/cancel` (`{batch}`), `/intake/promote` (`{rel}`) and `POST /job` (`{name, batch?}` with `name` in
 `run`, `intake`, `radiator`, `deliver`, `rework`; poll `GET /job`). All need the token; all but the plan, the preflight and
-`/job` wait while a job runs (423). Errors are `{"error": "…"}`
+`/job` wait while a job runs (423); an unknown job name is a 400. `POST /vault` (`{confirm: true}`, anything else is a 400
+and nothing is touched) rebuilds the vault in the background: it creates the folder, replaces only the MIND, local-docs and
+bible subtrees, then calls the host's `on_vault_changed` once; the result is in `GET /job`, and if that callback fails the
+vault stays and `result.reindex_error` says why. `GET /artifact/log`, `/artifact/radiator` (HTML, served with
+`Content-Security-Policy: sandbox; default-src 'none'; style-src 'unsafe-inline'`, `nosniff` and `no-store`, to open in a
+new tab) and `/artifact/delivery` (the newest zip, as an attachment) need no token; anything else, a missing file or a link
+that leaves the workshop is a 404. Errors are `{"error": "…"}`
 with the same status codes as the review app. It has no route to stop the process or to open a local
 program, and `rel` values that leave the workshop are refused.
 
