@@ -310,7 +310,7 @@ def undo(root: Path, rel: str, client: Mind, by: str) -> dict:
     page = revision.find(root, rel)
     published = page.get("published") or {}
     if page["status"] != "publicada" or published.get("mode") != "api":
-        raise MindError(i18n.t("mind_nothing_to_undo"))
+        raise revision.ReviewError(i18n.t("mind_nothing_to_undo"))  # a state conflict (409), not a Confluence failure
     if not published.get("backup"):
         raise MindError(i18n.t("mind_undo_new_page", url=published.get("url", "")))
     saved = (root / i18n.name("out") / BACKUP_DIR / published["backup"]).read_text(encoding="utf-8")

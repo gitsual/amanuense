@@ -211,11 +211,15 @@ has a workshop. It never writes to the folder on install. It reads: `GET /state`
 `/job`, `/task?rel=` and `POST /preview` (Markdown to HTML, 2 MB at most). It reviews with `POST /save`
 (`{rel, markdown}`), `/resolve` (`{rel, notice, decision}`), `/approve`, `/reopen` (`{rel}`) and `/discard`
 (`{rel, reason}`), each answering with the page as `GET /page` shows it (an open conflict makes approve a 409),
-and `/promote` (`{rel}` of a set-aside task -> `{ok: true}`). It also takes documentation in:
+and `/promote` (`{rel}` of a set-aside task -> `{ok: true}`). It publishes to MIND with `POST /preflight`
+(`{rel, parent?}` -> `{page, parent, blockers, warnings}`; it only reads, so it also runs during a job),
+`/publish` (`{rel, parent?, accept_warnings?}`; blockers, or warnings without `accept_warnings`, are a 400 and
+change nothing), `/undo` (409 when no publish from here was recorded) and `/mark-published` (`{rel, url}`
+for a page published by hand). It also takes documentation in:
 `POST /intake/plan` (`{files:[{path,size,sha256}]}`, up to 16 MB), `/intake/start` (-> `{batch, folder}`),
 `/intake/file?batch=&path=` (raw `application/octet-stream` body with `X-Content-SHA256`, streamed to disk),
 `/intake/cancel` (`{batch}`), `/intake/promote` (`{rel}`) and `POST /job` (`{name, batch?}` with `name` in
-`run`, `intake`, `radiator`, `deliver`, `rework`; poll `GET /job`). All need the token; all but the plan and
+`run`, `intake`, `radiator`, `deliver`, `rework`; poll `GET /job`). All need the token; all but the plan, the preflight and
 `/job` wait while a job runs (423). Errors are `{"error": "…"}`
 with the same status codes as the review app. It has no route to stop the process or to open a local
 program, and `rel` values that leave the workshop are refused.

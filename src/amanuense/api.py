@@ -236,6 +236,31 @@ def review_promote(body: dict = Depends(_limit(MAX_BODY)), ws: service.Workshop 
     return ws.act("promote", body)
 
 
+# ── MIND publish: preflight reads, publish and undo write Confluence, mark-published records a manual one ──
+
+@mutating("/preflight", busy=False)
+def publish_preflight(body: dict = Depends(_limit(MAX_BODY)), ws: service.Workshop = Depends(_ws)) -> dict:
+    """`{page, parent, blockers, warnings}`; it only reads, so it may run while a job does (as in the legacy app)."""
+    return ws.act("preflight", body)
+
+
+@mutating("/publish")
+def publish_page(body: dict = Depends(_limit(MAX_BODY)), ws: service.Workshop = Depends(_ws)) -> dict:
+    """Blockers are a 400; warnings need `accept_warnings: true`. Answers with the page as it is now."""
+    return ws.act("publish", body)
+
+
+@mutating("/undo")
+def publish_undo(body: dict = Depends(_limit(MAX_BODY)), ws: service.Workshop = Depends(_ws)) -> dict:
+    return ws.act("undo", body)
+
+
+@mutating("/mark-published")
+def publish_mark(body: dict = Depends(_limit(MAX_BODY)), ws: service.Workshop = Depends(_ws)) -> dict:
+    """A person published it by hand: record the URL."""
+    return ws.act("mark-published", body)
+
+
 # ── Documentation intake: plan, start, file × N, job "intake", poll /job ───────
 
 @mutating("/intake/plan", busy=False)
