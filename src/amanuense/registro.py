@@ -540,6 +540,14 @@ def _user() -> str:
     return settings.value("user")  # AMANUENSE_USER > settings.json > USERNAME/USER
 
 
+_USERINFO = re.compile(r"(?<=://)[^/\s@]*@")
+
+
+def scrub_url(text: str) -> str:
+    """The text without `user:password@` / `user@` in its URLs: the log is served without a token."""
+    return _USERINFO.sub("", str(text))
+
+
 def update_log(root: Path, exports: list[Path], pages: list[Page], ready: dict[str, kit.Task],
                history: ConfluenceHistory | None = None, router: Ai | None = None,
                template=None, bible: str = "", run=subprocess.run, ai: Ai | None = None,
@@ -596,11 +604,11 @@ def update_log(root: Path, exports: list[Path], pages: list[Page], ready: dict[s
             if sync_repos:
                 sync_repo(spec, run)
         except Exception as exc:  # offline: keep reading what was fetched before
-            errors.append(i18n.t("err_sync", repo=spec.url, error=exc))
+            errors.append(scrub_url(i18n.t("err_sync", repo=spec.url, error=exc)))
         try:
             commits = git_commits(spec.path, since, spec.refs, run)
         except Exception as exc:
-            errors.append(f"git ({spec.path}): {exc}")
+            errors.append(scrub_url(f"git ({spec.path}): {exc}"))
             continue
         for c in commits:
             entry = {"id": _id("codigo", c["hash"]), "kind": "codigo", "when": c["when"], "by": c["by"],
@@ -687,7 +695,7 @@ def render_log(entries: list[dict], errors: list[str] | None = None) -> str:
         rows.append(f"<tr><td>{html.escape(e['when'][:16].replace('T', ' '))}</td>"
                     f"<td>{_label('kind', e['kind'])}</td><td>{html.escape(e['by'])}</td>"
                     f"<td>{html.escape(e.get('page') or '')}</td><td>{_detail(e)}</td></tr>")
-    warn = (f"<p><b>{t('log_warnings')}</b></p><ul>" + "".join(f"<li>{html.escape(x)}</li>" for x in errors)
+    warn = (f"<p><b>{t('log_warnings')}</b></p><ul>" + "".join(f"<li>{html.escape(scrub_url(x))}</li>" for x in errors)
             + "</ul>" if errors else "")
     heads = "".join(f"<th>{t(k)}</th>" for k in ("col_date", "col_source", "col_who", "col_page", "col_what"))
     body = (f"<h1>{t('log_title')}</h1><p>{t('log_intro', requests=i18n.name('requests'))}</p>{warn}"

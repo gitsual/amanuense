@@ -157,3 +157,23 @@ def test_code_tasks_follow_the_english_workshop(tmp_path):
     assert len(tasks) == 1
     text = (tasks[0] / "TASK.md").read_text(encoding="utf-8")
     assert "Commits in the code touch what this page describes" in text
+
+
+def test_credentials_in_a_repo_url_never_reach_the_log(tmp_path):
+    root = tmp_path / "taller"
+    docs_kit.init_workspace(root)
+    url = "https://bob:s3cret@bitbucket.example.com/team/repo.git"
+    (root / "repos.txt").write_text(f"{url}\n", encoding="utf-8")
+
+    def run(cmd, **_k):
+        return subprocess.CompletedProcess(cmd, 128, "", f"fatal: unable to access '{url}/': refused for token@x")
+    done = log.update_log(root, [], [], {}, run=run)
+    out = root / i18n.name("out")
+    shown = "\n".join(done["errors"]) + (out / i18n.name("log_html")).read_text(encoding="utf-8")
+    assert "bitbucket.example.com/team/repo.git" in shown
+    assert "s3cret" not in shown and "bob" not in shown
+
+
+def test_scrub_removes_user_and_user_password_but_keeps_plain_text():
+    assert log.scrub_url("clone https://u:p@h.io/x ssh://git@h.io/x ok@mail") == "clone https://h.io/x ssh://h.io/x ok@mail"
+    assert log.scrub_url("no urls here") == "no urls here"
