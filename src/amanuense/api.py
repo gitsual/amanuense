@@ -1,14 +1,16 @@
 """
 api — the workshop as a FastAPI router, for a host that already serves a web app.
 
-Optional: needs `pip install 'amanuense[fastapi]'`. The router only reads (the review
-screens' state, a page, the job, a task, a Markdown preview); the host adds it with
-`install(app, workspace)`. It has no route to stop the process or to open a local program.
+Optional: needs `pip install 'amanuense[fastapi]'`. The router reads (the review screens'
+state, a page, the job, a task, a Markdown preview) and hands out the per-process session
+token that every mutating route requires; the host adds it with `install(app, workspace)`.
+It has no route to stop the process or to open a local program.
 """
 from __future__ import annotations
 
 import json
 from pathlib import Path, PurePosixPath, PureWindowsPath
+from urllib.parse import urlsplit
 
 try:
     from fastapi import APIRouter, Depends, FastAPI, Request
@@ -26,6 +28,12 @@ from . import service
 
 API_VERSION = 1  # bumped when a route is added or changes; the host checks it
 MAX_BODY = 2_000_000
+LOOPBACK = frozenset({"127.0.0.1", "localhost", "::1"})  # Host names the token routes answer to
+MUTATING: dict[str, bool] = {}  # mutating route path (below the prefix) -> waits for a running job
+
+
+class _Denied(Exception):
+    """A call refused before it reaches the workshop; answered 403 with `{"error": reason}`."""
 
 
 class _Route(APIRoute):
@@ -39,6 +47,8 @@ class _Route(APIRoute):
                 return await handler(request)
             except (HTTPException, RequestValidationError):
                 raise
+            except _Denied as denied:
+                return JSONResponse({"error": str(denied)}, status_code=403)
             except Exception as exc:
                 status, body = service.error_status(exc)
                 return JSONResponse(body, status_code=status)
@@ -56,9 +66,43 @@ def install(app: FastAPI, workspace: Path | str, *, vault: Path | None = None, o
         raise FileNotFoundError(f"workshop folder not found: {folder}")
     if getattr(app.state, "amanuense", None) is not None:
         raise RuntimeError("amanuense is already installed in this app")
+    _security(app)
     app.state.amanuense = service.Workshop(folder, lang, init=False, vault=vault, on_vault_changed=on_vault_changed)
     app.include_router(router)
     return app.state.amanuense
+
+
+def _security(app: FastAPI) -> str:
+    """The session token of this process, on `app.state` so it exists with or without a workshop."""
+    if getattr(app.state, "amanuense_token", None) is None:
+        app.state.amanuense_token = service.new_token()
+    return app.state.amanuense_token
+
+
+def _host_ok(request: Request) -> bool:
+    host = urlsplit("//" + request.headers.get("host", "")).hostname or ""
+    return host in LOOPBACK
+
+
+def _require_token(request: Request) -> None:
+    """Dependency of every mutating route: a loopback Host and the header issued by `/session`."""
+    expected = getattr(request.app.state, "amanuense_token", None)
+    if not _host_ok(request) or not expected or not service.check_token(expected, request.headers.get(service.TOKEN_HEADER)):
+        raise _Denied("token")
+
+
+def _idle(request: Request) -> None:
+    """Dependency of the routes that edit the workshop: not while a job is running (423)."""
+    ws = getattr(request.app.state, "amanuense", None)
+    if ws is not None and ws.job.running():
+        raise service.Busy()
+
+
+def mutating(path: str, *, busy: bool = True, **options):
+    """Register a POST route on the router behind the token (and, if `busy`, the job gate)."""
+    MUTATING[path] = busy
+    deps = [Depends(_require_token)] + ([Depends(_idle)] if busy else [])
+    return router.post(path, dependencies=deps, **options)
 
 
 def _ws(request: Request) -> service.Workshop:
@@ -91,6 +135,18 @@ def _limit(max_bytes: int):
             raise ValueError("bad request")
         return body
     return read
+
+
+@router.get("/session")
+def session(request: Request) -> JSONResponse:
+    """The token for this page's calls; refused to cross-site pages and to foreign Host or Origin."""
+    host = request.headers.get("host", "")
+    origin = request.headers.get("origin")
+    if (not _host_ok(request) or request.headers.get("sec-fetch-site", "same-origin") != "same-origin"
+            or (origin is not None and origin != f"http://{host}")):
+        raise _Denied("session")
+    return JSONResponse({"token": request.app.state.amanuense_token, "header": service.TOKEN_HEADER},
+                        headers={"Cache-Control": "no-store"})
 
 
 @router.get("/state")
