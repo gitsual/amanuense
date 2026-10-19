@@ -14,6 +14,7 @@ import shutil
 import threading
 import traceback
 from pathlib import Path, PurePosixPath, PureWindowsPath
+from urllib.parse import urlsplit
 
 from . import i18n
 from . import intake
@@ -145,6 +146,19 @@ def need(body: dict, *keys: str) -> list:
     if missing:
         raise ValueError(i18n.t("ui_missing", fields=", ".join(missing)))
     return [body[k] for k in keys]
+
+
+def web_url(value) -> str:
+    """The address as typed, only when it is an http(s) link with a host: it ends up as an href."""
+    url = str(value or "").strip()
+    try:
+        parts = urlsplit(url)
+        ok = parts.scheme in ("http", "https") and bool(parts.hostname)
+    except ValueError:
+        ok = False
+    if not ok:
+        raise ValueError(i18n.t("ui_bad_url"))
+    return url
 
 
 def summary(result: dict) -> dict:
@@ -364,7 +378,7 @@ class Workshop:
             "reopen": acted(lambda rel, b: revision.reopen(root, rel, by=by())),
             "discard": acted(lambda rel, b: revision.discard(root, rel, by=by(), reason=need(b, "reason")[0])),
             "mark-published": acted(lambda rel, b: revision.mark_published(
-                root, rel, by=by(), mode="manual", url=need(b, "url")[0], version=None)),
+                root, rel, by=by(), mode="manual", url=web_url(need(b, "url")[0]), version=None)),
             "publish": acted(lambda rel, b: mind.publish(root, rel, _client(), by(), parent=b.get("parent") or None,
                                                          accept_warnings=bool(b.get("accept_warnings")))),
             "undo": acted(lambda rel, b: mind.undo(root, rel, _client(), by())),

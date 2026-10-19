@@ -1,6 +1,7 @@
 """api: the MIND publish routes (preflight, publish, undo, mark-published) with a fake Confluence."""
 import sys
 import threading
+import time
 from pathlib import Path
 
 import pytest
@@ -50,8 +51,15 @@ def host(tmp_path, monkeypatch):
 def blocking(monkeypatch):
     """A comparison that stays running: the fake Mind would answer the fetch at once, so the job waits there."""
     gate = threading.Event()
-    monkeypatch.setattr(space, "resolve", lambda *a, **k: gate.wait(5) and space.Source("export", None))
+    waited = []
+
+    def resolve(*a, **k):
+        waited.append(gate.wait(10))  # recorded so the test can tell a timeout from a release
+        return space.Source("export", None)
+
+    monkeypatch.setattr(space, "resolve", resolve)
     monkeypatch.setattr(docs_kit, "run_workspace", lambda *a, **k: {"ready": [], "tasks": [], "log_errors": []})
+    gate.waited = waited
     yield gate
     gate.set()
 
@@ -139,6 +147,30 @@ def test_a_network_failure_is_a_400_with_the_status_unchanged_and_no_record(host
     proposal = client.get(f"{BASE}/page", params={"rel": UPDATE}).json()["proposal"]
     assert proposal["status"] == "aprobada" and not proposal.get("published")
     assert revision.find(folder, UPDATE).get("published") in (None, {})
+    backups = folder / docs_kit.OUT_DIR / mind.BACKUP_DIR
+    assert not list(backups.glob("*.xml"))  # the pre-update copy is removed when the update fails
+
+
+def test_an_update_that_is_not_read_back_is_a_400_with_no_record(host, monkeypatch):
+    _app, folder, client, h, fake = host
+    _approve(client, h)
+
+    def stale(req, timeout=None):
+        if req.get_method() == "PUT":  # Confluence answers 200 but the page keeps its old version and body
+            fake.requests.append(req)
+            return fake._answer(fake.pages["101"])
+        return fake(req, timeout)
+
+    monkeypatch.setattr(settings, "mind_client", lambda: mind.Mind(MIND_URL, TOKEN, "WK", opener=stale))
+    got = client.post(f"{BASE}/publish", json={"rel": UPDATE}, headers=h)
+    assert got.status_code == 400 and got.json()["error"]
+    assert TOKEN not in got.text
+    assert len(_puts(fake)) == 1 and fake.pages["101"]["version"]["number"] == 3
+    proposal = client.get(f"{BASE}/page", params={"rel": UPDATE}).json()["proposal"]
+    assert proposal["status"] == "aprobada" and not proposal.get("published")
+    assert not revision.find(folder, UPDATE).get("published")
+    # the copy of the page stays: the write may have landed, and it is the only way back
+    assert (folder / docs_kit.OUT_DIR / mind.BACKUP_DIR / "101-v3.xml").exists()
 
 
 def test_an_unreachable_mind_on_preflight_is_a_400_too(host):
@@ -179,6 +211,25 @@ def test_mark_published_records_the_url_a_person_published_by_hand(host):
     assert fake.requests == []  # by hand: Confluence is never called
 
 
+@pytest.mark.parametrize("url", ["javascript:alert(1)", "data:text/html,<script>1</script>", "ftp://x/y",
+                                 "/pages/viewpage.action?pageId=1", "https://", "mind/x", "  "])
+def test_mark_published_refuses_a_url_that_is_not_a_web_link(host, url):
+    _app, folder, client, h, fake = host
+    _approve(client, h)
+    got = client.post(f"{BASE}/mark-published", json={"rel": UPDATE, "url": url}, headers=h)
+    assert got.status_code == 400 and got.json()["error"]
+    assert _status(client) == "aprobada" and not revision.find(folder, UPDATE).get("published")
+
+
+def test_mark_published_accepts_http_and_https(host):
+    _app, _folder, client, h, _fake = host
+    _approve(client, h)
+    got = client.post(f"{BASE}/mark-published", json={"rel": UPDATE, "url": " http://mind.local/x?a=1 "},
+                      headers=h)
+    assert got.status_code == 200
+    assert got.json()["proposal"]["published"]["url"] == "http://mind.local/x?a=1"
+
+
 def test_mark_published_without_a_url_is_a_400(host):
     _app, _folder, client, h, _fake = host
     _approve(client, h)
@@ -197,8 +248,9 @@ def test_publishing_waits_while_a_job_runs_but_a_preflight_still_reads(host, blo
     assert _status(client) == "aprobada" and _puts(fake) == []
     assert client.post(f"{BASE}/preflight", json={"rel": UPDATE}, headers=h).status_code == 200
     blocking.set()
-    for _ in range(200):
-        if not client.get(f"{BASE}/job").json()["running"]:
-            break
+    deadline = time.monotonic() + 30
+    while client.get(f"{BASE}/job").json()["running"] and time.monotonic() < deadline:
         threading.Event().wait(0.02)
+    assert not client.get(f"{BASE}/job").json()["running"], "the job did not finish"
+    assert blocking.waited == [True]  # the job was released by the test, not by the gate timing out
     assert client.post(f"{BASE}/publish", json={"rel": UPDATE}, headers=h).status_code == 200

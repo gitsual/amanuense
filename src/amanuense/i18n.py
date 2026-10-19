@@ -428,6 +428,7 @@ la IA dice qué página tocar, qué cambiar y por qué, y prepara su tarea.
     "ui_missing": {"en": 'Missing: {fields}', "es": 'Falta: {fields}'},
     "ui_mind_not_configured": {"en": 'Confluence is not configured: open Settings and add its address, space and token.', "es": 'MIND no está configurado: abre Ajustes y añade la dirección, el espacio y el token.'},
     "ui_ai_not_configured": {"en": 'No AI is configured: choose one in Settings.', "es": 'No hay ninguna IA configurada: elige una en Ajustes.'},
+    "ui_bad_url": {"en": 'The address must be a web link starting with http:// or https://.', "es": 'La dirección debe ser un enlace web que empiece por http:// o https://.'},
     "ui_nothing_to_open": {"en": 'There is nothing to open yet.', "es": 'Todavía no hay nada que abrir.'},
     "ui_too_big": {"en": 'The text is too big to send.', "es": 'El texto es demasiado grande para enviarlo.'},
     "ui_busy": {"en": 'Wait until the current task finishes.', "es": 'Espera a que termine la tarea en curso.'},
