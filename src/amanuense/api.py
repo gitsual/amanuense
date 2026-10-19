@@ -2,8 +2,8 @@
 api — the workshop as a FastAPI router, for a host that already serves a web app.
 
 Optional: needs `pip install 'amanuense[fastapi]'`. The router reads (the review screens'
-state, a page, the job, a task, a Markdown preview), takes documentation in (the intake routes
-and `POST /job`) and hands out the per-process session
+state, a page, the job, a task, a Markdown preview), reviews (save, resolve, approve, reopen,
+discard, promote), takes documentation in (the intake routes and `POST /job`) and hands out the per-process session
 token that every mutating route requires; the host adds it with `install(app, workspace)`.
 It has no route to stop the process or to open a local program.
 """
@@ -204,6 +204,39 @@ def task(rel: str = "", ws: service.Workshop = Depends(_ws)) -> dict:
 @router.post("/preview")
 async def preview(body: dict = Depends(_limit(MAX_BODY)), ws: service.Workshop = Depends(_ws)) -> dict:
     return await run_in_threadpool(ws.act, "preview", body)
+
+
+# ── Review: edit, resolve, approve, reopen, discard, promote; each answers with the page as it is now ──
+
+@mutating("/save")
+def review_save(body: dict = Depends(_limit(MAX_BODY)), ws: service.Workshop = Depends(_ws)) -> dict:
+    return ws.act("save", body)
+
+
+@mutating("/resolve")
+def review_resolve(body: dict = Depends(_limit(MAX_BODY)), ws: service.Workshop = Depends(_ws)) -> dict:
+    return ws.act("resolve", body)
+
+
+@mutating("/approve")
+def review_approve(body: dict = Depends(_limit(MAX_BODY)), ws: service.Workshop = Depends(_ws)) -> dict:
+    return ws.act("approve", body)
+
+
+@mutating("/reopen")
+def review_reopen(body: dict = Depends(_limit(MAX_BODY)), ws: service.Workshop = Depends(_ws)) -> dict:
+    return ws.act("reopen", body)
+
+
+@mutating("/discard")
+def review_discard(body: dict = Depends(_limit(MAX_BODY)), ws: service.Workshop = Depends(_ws)) -> dict:
+    return ws.act("discard", body)
+
+
+@mutating("/promote")
+def review_promote(body: dict = Depends(_limit(MAX_BODY)), ws: service.Workshop = Depends(_ws)) -> dict:
+    """A set-aside task goes back to be written; answers `{"ok": true}` (it has no page yet)."""
+    return ws.act("promote", body)
 
 
 # ── Documentation intake: plan, start, file × N, job "intake", poll /job ───────

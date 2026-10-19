@@ -61,7 +61,8 @@ def test_the_router_has_no_way_to_stop_the_server_or_open_a_browser():
     assert paths == {f"{BASE}/state", f"{BASE}/page", f"{BASE}/job", f"{BASE}/task", f"{BASE}/preview",
                      f"{BASE}/session", f"{BASE}/settings", f"{BASE}/settings/test", f"{BASE}/settings/forget",
                      f"{BASE}/intake/plan", f"{BASE}/intake/start", f"{BASE}/intake/file", f"{BASE}/intake/cancel",
-                     f"{BASE}/intake/promote", f"{BASE}/job"}
+                     f"{BASE}/intake/promote", f"{BASE}/job", f"{BASE}/save", f"{BASE}/resolve",
+                     f"{BASE}/approve", f"{BASE}/reopen", f"{BASE}/discard", f"{BASE}/promote"}
     source = (SRC / "amanuense" / "api.py").read_text(encoding="utf-8")
     assert "webbrowser" not in source and "shutdown" not in source and "/open" not in source
 

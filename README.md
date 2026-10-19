@@ -208,7 +208,10 @@ api.install(app, "/path/to/workshop")   # adds /api/amanuense/*
 
 `install` raises `FileNotFoundError` if the folder does not exist and `RuntimeError` if the app already
 has a workshop. It never writes to the folder on install. It reads: `GET /state`, `/page?rel=`,
-`/job`, `/task?rel=` and `POST /preview` (Markdown to HTML, 2 MB at most). It also takes documentation in:
+`/job`, `/task?rel=` and `POST /preview` (Markdown to HTML, 2 MB at most). It reviews with `POST /save`
+(`{rel, markdown}`), `/resolve` (`{rel, notice, decision}`), `/approve`, `/reopen` (`{rel}`) and `/discard`
+(`{rel, reason}`), each answering with the page as `GET /page` shows it (an open conflict makes approve a 409),
+and `/promote` (`{rel}` of a set-aside task -> `{ok: true}`). It also takes documentation in:
 `POST /intake/plan` (`{files:[{path,size,sha256}]}`, up to 16 MB), `/intake/start` (-> `{batch, folder}`),
 `/intake/file?batch=&path=` (raw `application/octet-stream` body with `X-Content-SHA256`, streamed to disk),
 `/intake/cancel` (`{batch}`), `/intake/promote` (`{rel}`) and `POST /job` (`{name, batch?}` with `name` in
