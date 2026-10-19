@@ -299,3 +299,59 @@ def test_install_and_install_settings_exclude_each_other_and_neither_repeats(tmp
         first(app)
         with pytest.raises(RuntimeError):
             second(app)
+
+
+# ── The environment view the host gives the settings routes ─────────────────────
+
+def _view_app(tmp_path, env, reduced=False):
+    from fastapi import FastAPI
+    from amanuense import api
+    app = FastAPI()
+    if reduced:
+        api.install_settings(app, env=env)
+    else:
+        api.install(app, _ready(tmp_path), env=env)
+    return app, _client(app)
+
+
+def test_default_environment_is_os_environ(full, monkeypatch):
+    monkeypatch.setenv("AMANUENSE_AI_URL", "http://real.example")
+    _app, client = full
+    row = _row(client.get(f"{BASE}/settings").json(), "ai_url")
+    assert (row["source"], row["editable"]) == ("environment", False)
+
+
+@pytest.mark.parametrize("reduced", [False, True])
+def test_mapping_view_replaces_os_environ(tmp_path, monkeypatch, reduced):
+    monkeypatch.setenv("AMANUENSE_AI_URL", "http://real.example")
+    _app, client = _view_app(tmp_path, {}, reduced)
+    row = _row(client.get(f"{BASE}/settings").json(), "ai_url")
+    assert (row["source"], row["editable"]) == ("default", True)
+    token = _token(client)
+    done = _post(client, "/settings", {"values": {"ai_url": "http://saved.example"}}, token)
+    assert done.status_code == 200  # os.environ would have refused: set by environment variable
+
+
+def test_view_names_lock_the_field_and_save_is_refused(tmp_path):
+    _app, client = _view_app(tmp_path, {"AMANUENSE_AI_URL": "http://view.example"})
+    row = _row(client.get(f"{BASE}/settings").json(), "ai_url")
+    assert (row["source"], row["value"], row["editable"]) == ("environment", "http://view.example", False)
+    refused = _post(client, "/settings", {"values": {"ai_url": "http://x.example"}}, _token(client))
+    assert refused.status_code == 400 and "ai_url" in refused.json()["fields"]
+
+
+def test_callable_view_is_read_on_every_request(tmp_path):
+    env = {}
+    _app, client = _view_app(tmp_path, lambda: env)
+    assert _row(client.get(f"{BASE}/settings").json(), "ai_url")["editable"] is True
+    env["AMANUENSE_AI_URL"] = "http://late.example"
+    assert _row(client.get(f"{BASE}/settings").json(), "ai_url")["source"] == "environment"
+
+
+def test_pending_restart_compares_against_the_view(tmp_path):
+    from amanuense import settings
+    env = {}
+    _app, client = _view_app(tmp_path, env)
+    settings.boot_snapshot(env)
+    _post(client, "/settings", {"values": {"lang": "es"}}, _token(client))
+    assert _row(client.get(f"{BASE}/settings").json(), "lang")["pending_restart"] is True

@@ -9,6 +9,7 @@ It has no route to stop the process or to open a local program.
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path, PurePosixPath, PureWindowsPath
 from urllib.parse import urlsplit
 
@@ -60,24 +61,33 @@ router = APIRouter(prefix="/api/amanuense", tags=["amanuense"], route_class=_Rou
 
 
 def install(app: FastAPI, workspace: Path | str, *, vault: Path | None = None, on_vault_changed=None,
-            lang: str | None = None, settings_notes=None) -> service.Workshop:
-    """Serve the workshop at `workspace` from `app`. One workshop per app; nothing is written to it."""
+            lang: str | None = None, settings_notes=None, env=None) -> service.Workshop:
+    """Serve the workshop at `workspace` from `app`. One workshop per app; nothing is written to it.
+
+    `env` is the environment the settings routes read: a mapping, or a function returning one
+    (called on every request). Default `os.environ`.
+    """
     folder = Path(workspace)
     if not folder.is_dir():
         raise FileNotFoundError(f"workshop folder not found: {folder}")
     _claim(app)
     app.state.amanuense_notes = settings_notes
+    app.state.amanuense_env = env
     _security(app)
     app.state.amanuense = service.Workshop(folder, lang, init=False, vault=vault, on_vault_changed=on_vault_changed)
     app.include_router(router)
     return app.state.amanuense
 
 
-def install_settings(app: FastAPI, *, settings_notes=None) -> None:
-    """Reduced install: only `/session` and the settings routes, with no workshop (to fix a bad workspace)."""
+def install_settings(app: FastAPI, *, settings_notes=None, env=None) -> None:
+    """Reduced install: only `/session` and the settings routes, with no workshop (to fix a bad workspace).
+
+    `env` is the same environment view as in `install`.
+    """
     _claim(app)
     app.state.amanuense_reduced = True
     app.state.amanuense_notes = settings_notes
+    app.state.amanuense_env = env
     _security(app)
     reduced = APIRouter(route_class=_Route)  # the routes already carry the full path
     reduced.routes.extend(r for r in router.routes if r.path in _REDUCED)
@@ -196,10 +206,16 @@ async def preview(body: dict = Depends(_limit(MAX_BODY)), ws: service.Workshop =
 _REDUCED = frozenset(f"/api/amanuense{p}" for p in ("/session", "/settings", "/settings/test", "/settings/forget"))
 
 
+def _env(request: Request):
+    """The environment the settings read: the host's view (mapping or function) or `os.environ`."""
+    view = getattr(request.app.state, "amanuense_env", None)
+    return os.environ if view is None else view() if callable(view) else view
+
+
 def _listing(request: Request) -> dict:
     notes = getattr(request.app.state, "amanuense_notes", None)
     return {"config_file": str(settings.config_dir() / settings.FILE), "revision": settings.revision(),
-            "fields": settings.fields(notes=notes() if notes else {})}
+            "fields": settings.fields(_env(request), notes=notes() if notes else {})}
 
 
 @router.get("/settings")
@@ -212,7 +228,7 @@ def settings_post(request: Request, body: dict = Depends(_limit(MAX_BODY))) -> d
     values, revision = body.get("values"), body.get("revision")
     if not isinstance(values, dict) or not (revision is None or isinstance(revision, str)):
         raise ValueError("bad request")
-    warnings = settings.update(values, revision=revision)["warnings"]
+    warnings = settings.update(values, revision=revision, env=_env(request))["warnings"]
     return {**_listing(request), "warnings": warnings}
 
 

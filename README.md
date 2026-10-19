@@ -223,6 +223,12 @@ saving and forgetting wait while a job runs. Each key is resolved as **environme
 (or `AMANUENSE_CONFIG_DIR`). Passing the `revision` you read makes a save fail with 409 if the file
 changed meanwhile; leaving it out is last-writer-wins.
 
+A host that wants the settings to read something other than `os.environ` (for example, one that copies
+saved values into its own environment at start and must not have them look like variables the user set)
+passes `env=` to `api.install(...)` or `api.install_settings(...)`: a mapping, or a function returning one
+(called on every request). Listing, saving and `pending_restart` use it; the host passes the same view to
+`settings.boot_snapshot(env)`. Default: `os.environ`.
+
 If the workshop folder is wrong the router cannot start, so a host can call
 `api.install_settings(app)` instead: it mounts only `/session` and the settings routes, enough to fix
 `workspace`. To recover without the web app, edit `config_file` (or set `AMANUENSE_WORKSPACE`; for a host
