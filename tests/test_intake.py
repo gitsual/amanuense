@@ -208,7 +208,10 @@ def test_a_containment_failure_gives_the_quota_back_and_removes_the_claimed_file
     ws, batch, ledger = _ledger_batch(tmp_path, monkeypatch)
     outside = tmp_path / "outside"
     outside.mkdir()
-    (ws / "2-my-docs" / batch / "link").symlink_to(outside, target_is_directory=True)
+    try:
+        (ws / "2-my-docs" / batch / "link").symlink_to(outside, target_is_directory=True)
+    except OSError:
+        pytest.skip("this account may not create symlinks (Windows without developer mode)")
     with pytest.raises(intake.PathError):
         ledger.store(batch, "link/a.md", io.BytesIO(b"xxxx"), 4)
     assert list(outside.iterdir()) == []  # the file claimed through the link is gone

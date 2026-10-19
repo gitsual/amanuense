@@ -164,7 +164,7 @@ def test_cli_obsidian_accepts_a_workshop(tmp_path, capsys):
 # ── a vault must never overlap the workshop, and a failed rebuild keeps the old one ──
 
 def _snapshot(folder):
-    return {str(p.relative_to(folder)): p.read_bytes() for p in sorted(folder.rglob("*")) if p.is_file()}
+    return {p.relative_to(folder).as_posix(): p.read_bytes() for p in sorted(folder.rglob("*")) if p.is_file()}
 
 
 def _overlaps(tmp_path):
