@@ -236,3 +236,19 @@ def test_adding_documentation_does_not_wait_for_the_repos(bare):
     assert not (ws / "repos" / "tracks").exists()
     assert _call(server, "POST", "/api/job", {"name": "run"})[0] == 200
     assert [w for w in _wait(server)["result"]["warnings"] if gone in w]
+
+
+def test_a_refused_upload_gets_its_answer_not_a_reset(bare):
+    # The refused body must be read away: closing with unread data sends a reset, and on Windows the
+    # browser (or this client) sees ConnectionAbortedError instead of the 403.
+    import http.client
+    ws, server = bare
+    batch = _call(server, "POST", "/api/intake/start", {})[1]["batch"]
+    q = urllib.parse.urlencode({"batch": batch, "path": "a.md"})
+    port = server.server_address[1]
+    for _ in range(5):
+        conn = http.client.HTTPConnection("127.0.0.1", port, timeout=20)
+        conn.request("POST", f"/api/intake/file?{q}", body=b"x" * (2 * 1024 * 1024),
+                     headers={"Host": f"127.0.0.1:{port}", "Content-Type": "application/octet-stream"})
+        assert conn.getresponse().status == 403
+        conn.close()

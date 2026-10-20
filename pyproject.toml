@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "amanuense"
-version = "0.4.3"
+version = "0.4.4"
 description = "Documentation workshop for Confluence: compares a Word export with local drafts, prepares one AI task per page, and logs who changed what in Confluence, the code and the requests."
 readme = "README.md"
 license = "MIT"

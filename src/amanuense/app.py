@@ -115,6 +115,7 @@ def _handler(ws: service.Workshop, token: str, port_box: dict):
 
         def do_POST(self):
             if not self._allowed(api=True):
+                self._drain(int(self.headers.get("Content-Length") or 0))
                 return self._json(403, {"error": "forbidden"})
             if urllib.parse.urlsplit(self.path).path == "/api/intake/file":
                 return self._upload()
