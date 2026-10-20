@@ -9,15 +9,18 @@ from __future__ import annotations
 
 import difflib
 import hmac
+import os
 import secrets
 import shutil
 import threading
 import traceback
-from pathlib import Path
+from pathlib import Path, PurePosixPath, PureWindowsPath
+from urllib.parse import urlsplit
 
 from . import i18n
 from . import intake
 from . import mind
+from . import obsidian
 from . import registro as log
 from . import revision
 from . import settings
@@ -27,6 +30,9 @@ from . import taller as kit
 TOKEN_HEADER = "X-Amanuense-Token"
 READS_ONLY = frozenset({"preview", "preflight", "settings/test", "intake/plan"})  # allowed while a job runs
 JOBS = frozenset({"run", "intake", "radiator", "deliver", "rework"})
+# actions whose body names a page of the workshop; `rel` is checked before any of them runs
+PAGE_ACTIONS = frozenset({"save", "resolve", "approve", "reopen", "discard", "promote",
+                          "mark-published", "publish", "undo", "preflight"})
 
 
 class Busy(Exception):
@@ -85,6 +91,14 @@ def check_token(expected: str, given: str | None) -> bool:
     return hmac.compare_digest(expected.encode(), (given or "").encode())
 
 
+class Coded(ValueError):
+    """A 400 that also carries a stable machine-readable `code` next to its localised message."""
+
+    def __init__(self, code: str, message: str):
+        super().__init__(message)
+        self.code = code
+
+
 def error_status(exc: Exception) -> tuple[int, dict]:
     """The HTTP status and JSON body every transport answers with for a failed call."""
     if isinstance(exc, Busy):
@@ -95,6 +109,12 @@ def error_status(exc: Exception) -> tuple[int, dict]:
         return 409, {"error": str(exc)}
     if isinstance(exc, intake.TooBig):
         return 413, {"error": str(exc)}
+    if isinstance(exc, settings.Invalid):
+        return 400, {"error": str(exc), "fields": exc.fields}
+    if isinstance(exc, settings.Conflict):
+        return 409, {"error": str(exc), "revision": exc.revision}
+    if isinstance(exc, Coded):
+        return 400, {"error": str(exc), "code": exc.code}
     if isinstance(exc, (mind.MindError, ValueError, FileNotFoundError)):
         return 400, {"error": str(exc)}
     traceback.print_exc()
@@ -113,11 +133,44 @@ def diff(before: str, after: str) -> list[dict]:
             for op, i1, i2, j1, j2 in difflib.SequenceMatcher(None, a, b, autojunk=False).get_opcodes()]
 
 
+def page_rel(rel) -> str:
+    """The `rel` of an action: a non-empty string, then the same rule as `safe_rel`."""
+    if not isinstance(rel, str) or not rel.strip():
+        raise ValueError(i18n.t("ui_missing", fields="rel"))
+    return safe_rel(rel)
+
+
+def safe_rel(rel: str) -> str:
+    """A page path as sent on the wire: relative and inside the workshop, whatever the separators."""
+    parts = PurePosixPath(rel.replace("\\", "/")).parts
+    if PurePosixPath(rel).is_absolute() or PureWindowsPath(rel).anchor or ".." in parts:
+        raise ValueError("bad path")
+    return "/".join(parts)
+
+
+def _checked(name: str, names: frozenset, body: dict) -> dict:
+    """The body with a clean `rel`, or ValueError, for the actions that name a page."""
+    return {**body, "rel": page_rel(body.get("rel"))} if name in names else body
+
+
 def need(body: dict, *keys: str) -> list:
     missing = [k for k in keys if not str(body.get(k) or "").strip()]
     if missing:
         raise ValueError(i18n.t("ui_missing", fields=", ".join(missing)))
     return [body[k] for k in keys]
+
+
+def web_url(value) -> str:
+    """The address as typed, only when it is an http(s) link with a host: it ends up as an href."""
+    url = str(value or "").strip()
+    try:
+        parts = urlsplit(url)
+        ok = parts.scheme in ("http", "https") and bool(parts.hostname)
+    except ValueError:
+        ok = False
+    if not ok:
+        raise ValueError(i18n.t("ui_bad_url"))
+    return url
 
 
 def summary(result: dict) -> dict:
@@ -129,7 +182,7 @@ def summary(result: dict) -> dict:
 def _client():
     c = settings.mind_client()
     if not c:
-        raise ValueError(i18n.t("ui_mind_not_configured"))
+        raise Coded("mind_not_configured", i18n.t("ui_mind_not_configured"))
     return c
 
 
@@ -167,6 +220,7 @@ class Workshop:
             "radiator": lambda body: lambda: str(kit.radiator_workspace(self.root)),
             "deliver": lambda body: lambda: str(kit.deliver_workspace(self.root, make_zip=True)),
             "rework": self._rework,
+            "vault": self.vault_job,  # not in JOBS: the router starts it through POST /vault
         }
         self._actions = self._build_actions()
 
@@ -227,11 +281,37 @@ class Workshop:
             raise ValueError(i18n.t("ui_nothing_to_open"))
         return path
 
+    def artifact(self, what: str) -> tuple[Path, str]:
+        """A file the web app may hand to the browser: `(path, kind)` with kind `html` or `zip`.
+
+        Only the log, the radiator and the newest delivery zip exist; a name outside that list, a missing
+        file or a file whose real path leaves the workshop is `Unknown` (404).
+        """
+        out = self.root / i18n.name("out")
+        if what == "log":
+            path, kind = out / i18n.name("log_html"), "html"
+        elif what == "radiator":
+            path, kind = out / "radiador" / "index.html", "html"
+        elif what == "delivery":
+            zips = sorted(out.glob(i18n.name("delivery") + "-*.zip"))
+            path, kind = (zips[-1] if zips else out / "none.zip"), "zip"
+        else:
+            raise Unknown(what)
+        try:
+            real = path.resolve(strict=True)
+            real.relative_to(self.root)
+        except (OSError, ValueError):
+            raise Unknown(what) from None
+        if not real.is_file():
+            raise Unknown(what)
+        return real, kind
+
     # writes
     def act(self, action: str, body: dict) -> dict:
         """One action; Unknown if it does not exist, Busy while a job runs unless it only reads."""
         if action not in self._actions:
             raise Unknown(action)
+        body = _checked(action, PAGE_ACTIONS, body)
         run = self._actions[action]
         if action not in READS_ONLY and self.job.running():
             raise Busy()
@@ -294,7 +374,35 @@ class Workshop:
     def _rework(self, body: dict):
         model = _ai()  # the engine is checked first, as the legacy server did
         rel, instruction = need(body, "rel", "instruction")
+        rel = page_rel(rel)
         return lambda: revision.rework(self.root, rel, instruction, model, log._user())["title"]
+
+    def vault_job(self, body: dict):
+        """The vault rebuilt from the workshop (only MIND, local docs and bible are replaced).
+
+        Checked before any job starts: `confirm` must be the boolean `true` and a vault folder must be
+        configured. The job creates the folder, rebuilds, then tells the host once (`on_vault_changed`);
+        a host that fails to reindex does not undo the vault: the error comes back as `reindex_error`.
+        """
+        if body.get("confirm") is not True:
+            raise ValueError(i18n.t("ui_missing", fields="confirm"))
+        if self.vault is None:
+            raise ValueError("no vault folder is configured")
+        obsidian.check_vault(self.root, Path(self.vault))  # before any job: a rebuild would delete the sources
+        vault, notify = Path(self.vault), self.on_vault_changed
+
+        def work() -> dict:
+            self.job.progress("vault")
+            os.makedirs(vault, exist_ok=True)
+            done = obsidian.workshop_to_vault(self.root, vault, force=True)
+            result = {k: str(v) if isinstance(v, Path) else v for k, v in done.items()}
+            if notify is not None:
+                try:
+                    notify()
+                except Exception as exc:  # the vault is built; only the reindex failed
+                    result["reindex_error"] = str(exc) or exc.__class__.__name__
+            return result
+        return work
 
     def _start_batch(self, _body: dict) -> dict:
         batch = intake.new_batch(self.root)
@@ -335,7 +443,7 @@ class Workshop:
             "reopen": acted(lambda rel, b: revision.reopen(root, rel, by=by())),
             "discard": acted(lambda rel, b: revision.discard(root, rel, by=by(), reason=need(b, "reason")[0])),
             "mark-published": acted(lambda rel, b: revision.mark_published(
-                root, rel, by=by(), mode="manual", url=need(b, "url")[0], version=None)),
+                root, rel, by=by(), mode="manual", url=web_url(need(b, "url")[0]), version=None)),
             "publish": acted(lambda rel, b: mind.publish(root, rel, _client(), by(), parent=b.get("parent") or None,
                                                          accept_warnings=bool(b.get("accept_warnings")))),
             "undo": acted(lambda rel, b: mind.undo(root, rel, _client(), by())),

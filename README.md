@@ -207,14 +207,56 @@ api.install(app, "/path/to/workshop")   # adds /api/amanuense/*
 ```
 
 `install` raises `FileNotFoundError` if the folder does not exist and `RuntimeError` if the app already
-has a workshop. It never writes to the folder. The router only **reads**: `GET /state`, `/page?rel=`,
-`/job`, `/task?rel=` and `POST /preview` (Markdown to HTML, 2 MB at most). Errors are `{"error": "…"}`
+has a workshop. It never writes to the folder on install. It reads: `GET /state`, `/page?rel=`,
+`/job`, `/task?rel=` and `POST /preview` (Markdown to HTML, 2 MB at most). It reviews with `POST /save`
+(`{rel, markdown}`), `/resolve` (`{rel, notice, decision}`), `/approve`, `/reopen` (`{rel}`) and `/discard`
+(`{rel, reason}`), each answering with the page as `GET /page` shows it (an open conflict makes approve a 409),
+and `/promote` (`{rel}` of a set-aside task -> `{ok: true}`). It publishes to MIND with `POST /preflight`
+(`{rel, parent?}` -> `{page, parent, blockers, warnings}`; it only reads, so it also runs during a job),
+`/publish` (`{rel, parent?, accept_warnings?}`; blockers, or warnings without `accept_warnings`, are a 400 and
+change nothing), `/undo` (409 when no publish from here was recorded) and `/mark-published` (`{rel, url}`
+for a page published by hand). It also takes documentation in:
+`POST /intake/plan` (`{files:[{path,size,sha256}]}`, up to 16 MB), `/intake/start` (-> `{batch, folder}`),
+`/intake/file?batch=&path=` (raw `application/octet-stream` body with `X-Content-SHA256`, streamed to disk; `Content-Length` is required, 411 without a valid one, and the bytes received are counted: more than declared is 413, fewer is 400, nothing is kept),
+`/intake/cancel` (`{batch}`), `/intake/promote` (`{rel}`) and `POST /job` (`{name, batch?}` with `name` in
+`run`, `intake`, `radiator`, `deliver`, `rework`; poll `GET /job`). All need the token; all but the plan, the preflight and
+`/job` wait while a job runs (423); an unknown job name is a 400. `POST /vault` (`{confirm: true}`, anything else is a 400
+and nothing is touched) rebuilds the vault in the background: it creates the folder, replaces only the MIND, local-docs and
+bible subtrees, then calls the host's `on_vault_changed` once; the result is in `GET /job`, and if that callback fails the
+vault stays and `result.reindex_error` says why. `GET /artifact/log`, `/artifact/radiator` (HTML, served with
+`Content-Security-Policy: sandbox; default-src 'none'; style-src 'unsafe-inline'`, `nosniff` and `no-store`, to open in a
+new tab) and `/artifact/delivery` (the newest zip, as an attachment) need no token; anything else, a missing file or a link
+that leaves the workshop is a 404. Errors are `{"error": "…"}`
 with the same status codes as the review app. It has no route to stop the process or to open a local
 program, and `rel` values that leave the workshop are refused.
 
+### Settings from the web app
+
+The router also serves the app's Settings: `GET /settings` (fields, `config_file`, `revision`),
+`POST /settings` (`{values, revision?}`), `POST /settings/forget` (`{fields?}`; no `fields` removes every
+stored secret) and `POST /settings/test` (the MIND user). Every POST needs the token from `GET /session`;
+saving and forgetting wait while a job runs. Each key is resolved as **environment variable, then
+`settings.json`, then default**; a key set in the environment is shown read-only and refused on save.
+`settings.json` lives in `config_file`: `%APPDATA%\amanuense` on Windows, `~/.config/amanuense` elsewhere
+(or `AMANUENSE_CONFIG_DIR`). Passing the `revision` you read makes a save fail with 409 if the file
+changed meanwhile; leaving it out is last-writer-wins.
+
+A host that wants the settings to read something other than `os.environ` (for example, one that copies
+saved values into its own environment at start and must not have them look like variables the user set)
+passes `env=` to `api.install(...)` or `api.install_settings(...)`: a mapping, or a function returning one
+(called on every request). Listing, saving and `pending_restart` use it; the host passes the same view to
+`settings.boot_snapshot(env)`. Default: `os.environ`.
+
+If the workshop folder is wrong the router cannot start, so a host can call
+`api.install_settings(app)` instead: it mounts only `/session` and the settings routes, enough to fix
+`workspace`. To recover without the web app, edit `config_file` (or set `AMANUENSE_WORKSPACE`; for a host
+switched off with `documentation_enabled=false`, remove that key or set `OBSIDIAN_SEARCH_DOCUMENTATION=1`).
+Downgrading to an older amanuense keeps working, but its next save drops the keys added in version 2
+(workspace, language, author, AI key and the host's search keys).
+
 `amanuense.api.API_VERSION` is a plain integer that grows whenever a route is added or changes; a host
 compares it with the version it was written for and hides the integration when it is lower. This release
-is version 1. To turn the labels of the review screens into a host's locale files, see
+is version 2. To turn the labels of the review screens into a host's locale files, see
 `scripts/export_ui_texts.py`.
 
 ## The change log

@@ -3,9 +3,11 @@ import sys
 import zipfile
 from pathlib import Path
 
+import pytest
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from amanuense import obsidian  # noqa: E402
+from amanuense import obsidian, taller  # noqa: E402
 
 W = 'xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"'
 R = 'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"'
@@ -157,3 +159,112 @@ def test_cli_obsidian_accepts_a_workshop(tmp_path, capsys):
     taller.main(["obsidian", str(_workshop(tmp_path)), str(tmp_path / "vault")])
     out = capsys.readouterr().out
     assert "8" in out and str(tmp_path / "vault") in out
+
+
+# ── a vault must never overlap the workshop, and a failed rebuild keeps the old one ──
+
+def _snapshot(folder):
+    return {p.relative_to(folder).as_posix(): p.read_bytes() for p in sorted(folder.rglob("*")) if p.is_file()}
+
+
+def _overlaps(tmp_path):
+    from amanuense import i18n
+    ws = _workshop(tmp_path)
+    (ws / i18n.name("out")).mkdir()
+    return ws, {"equal": ws, "contains": tmp_path, "in_local": ws / i18n.name("local") / "vault",
+                "in_export": ws / i18n.name("export") / "vault", "in_out": ws / i18n.name("out") / "vault"}
+
+
+@pytest.mark.parametrize("where", ["equal", "contains", "in_local", "in_export", "in_out"])
+def test_a_vault_that_overlaps_the_workshop_is_refused_and_nothing_is_deleted(tmp_path, where):
+    ws, vaults = _overlaps(tmp_path)
+    before = _snapshot(tmp_path)
+    with pytest.raises(ValueError):
+        obsidian.workshop_to_vault(ws, vaults[where], force=True)
+    assert _snapshot(tmp_path) == before
+
+
+def test_the_workshop_vault_folder_is_a_valid_vault_and_leaves_the_sources_alone(tmp_path):
+    """<workshop>/vault is the documented layout (amanuense.sh vault, settings default)."""
+    from amanuense import i18n
+    ws = _workshop(tmp_path)
+    sources = {k: _snapshot(ws / i18n.name(k)) for k in ("export", "local", "bible")}
+    for _ in range(2):  # a rebuild over the previous vault, as the vault job does
+        done = obsidian.workshop_to_vault(ws, ws / "vault", force=True)
+    assert done["vault"] == ws / "vault"
+    assert (ws / "vault" / i18n.name("local") / "Contrato.md").is_file()
+    assert {k: _snapshot(ws / i18n.name(k)) for k in sources} == sources
+
+
+def test_the_cli_reports_an_overlapping_vault_without_a_traceback(tmp_path, capsys):
+    ws = _workshop(tmp_path)
+    with pytest.raises(SystemExit) as e:
+        taller.main(["obsidian", str(ws), str(ws), "--force"])
+    assert str(e.value).startswith("✗ ")
+
+
+def test_a_vault_reached_through_a_symlink_to_the_workshop_is_refused(tmp_path):
+    ws = _workshop(tmp_path)
+    link = tmp_path / "alias"
+    try:
+        link.symlink_to(ws, target_is_directory=True)
+    except OSError:
+        pytest.skip("symlinks are not available")
+    before = _snapshot(ws)
+    with pytest.raises(ValueError):
+        obsidian.workshop_to_vault(ws, link, force=True)
+    assert _snapshot(ws) == before
+
+
+def test_a_failed_rebuild_leaves_the_old_vault_byte_identical_and_no_temp_dirs(tmp_path, monkeypatch):
+    ws, vault = _workshop(tmp_path), tmp_path / "vault"
+    obsidian.workshop_to_vault(ws, vault)
+    (vault / ".obsidian").mkdir()
+    (vault / ".obsidian" / "app.json").write_text("{}", encoding="utf-8")
+    before = _snapshot(vault)
+    names = sorted(p.name for p in vault.iterdir())
+
+    def boom(*_a, **_k):
+        raise RuntimeError("broken docx")
+    monkeypatch.setattr(obsidian, "export_to_vault", boom)
+    with pytest.raises(RuntimeError, match="broken docx"):
+        obsidian.workshop_to_vault(ws, vault, force=True)
+    assert _snapshot(vault) == before
+    assert sorted(p.name for p in vault.iterdir()) == names, "no temporary folder is left behind"
+
+
+def test_a_failed_copy_also_keeps_the_old_vault(tmp_path, monkeypatch):
+    ws, vault = _workshop(tmp_path), tmp_path / "vault"
+    obsidian.workshop_to_vault(ws, vault)
+    before = _snapshot(vault)
+
+    def boom(*_a, **_k):
+        raise OSError("disk full")
+    monkeypatch.setattr(obsidian.shutil, "copytree", boom)
+    with pytest.raises(OSError):
+        obsidian.workshop_to_vault(ws, vault, force=True)
+    assert _snapshot(vault) == before
+    assert {p.name for p in vault.iterdir()} == {key.split("/")[0] for key in before}
+
+
+def test_a_failed_rollback_keeps_the_old_data_and_says_where(tmp_path, monkeypatch):
+    ws, vault = _workshop(tmp_path), tmp_path / "vault"
+    obsidian.workshop_to_vault(ws, vault)
+    marker = vault / "MIND" / "Mine.md"
+    marker.write_text("precious\n", encoding="utf-8")
+    real = obsidian.os.replace
+
+    def flaky(src, dst):
+        parts = Path(src).parts
+        if ".old" in parts:  # rollback: aside -> vault
+            raise OSError("rollback denied")
+        if Path(src).parent.name.startswith(".amanuense-new-"):  # placing the new subtrees
+            raise OSError("place denied")
+        return real(src, dst)
+    monkeypatch.setattr(obsidian.os, "replace", flaky)
+    with pytest.raises(OSError, match=r"\.amanuense-new-") as info:
+        obsidian.workshop_to_vault(ws, vault, force=True)
+    assert "rollback denied" in str(info.value) or "place denied" in str(info.value)
+    kept = [p for p in vault.rglob("Mine.md")]
+    assert kept and kept[0].read_text(encoding="utf-8") == "precious\n"
+    assert ".old" in kept[0].parts

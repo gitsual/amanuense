@@ -150,6 +150,74 @@ def test_uploads_refuse_bad_batches_paths_types_sizes_and_hashes(tmp_path, monke
     assert sorted(p.name for p in (ws / "2-my-docs" / batch).iterdir()) == ["one.md"]
 
 
+# ── A failed store gives its quota back and keeps no claimed file ───────────────
+
+def _ledger_batch(tmp_path, monkeypatch, limit=8):
+    ws = tmp_path / "ws"
+    docs_kit.init_workspace(ws, "en")
+    batch = intake.new_batch(ws)
+    monkeypatch.setattr(intake, "MAX_BATCH_BYTES", limit)
+    return ws, batch, intake.Ledger(ws)
+
+
+def _held(ws, batch):
+    return sorted(p.name for p in (ws / "2-my-docs" / batch).rglob("*"))
+
+
+def test_a_failing_mkdir_gives_the_quota_back(tmp_path, monkeypatch):
+    ws, batch, ledger = _ledger_batch(tmp_path, monkeypatch)
+    real = Path.mkdir
+
+    def mkdir(self, *a, **k):
+        if self.name == "sub":
+            raise OSError("disk trouble")
+        return real(self, *a, **k)
+    monkeypatch.setattr(Path, "mkdir", mkdir)
+    with pytest.raises(OSError):
+        ledger.store(batch, "sub/a.md", io.BytesIO(b"xxxx"), 4)
+    monkeypatch.setattr(Path, "mkdir", real)
+    assert _held(ws, batch) == []
+    ledger.store(batch, "full.md", io.BytesIO(b"x" * 8), 8)  # the whole quota is still there
+
+
+def test_a_failing_touch_gives_the_quota_back(tmp_path, monkeypatch):
+    ws, batch, ledger = _ledger_batch(tmp_path, monkeypatch)
+    real = Path.touch
+
+    def touch(self, *a, **k):
+        raise OSError("disk trouble")
+    monkeypatch.setattr(Path, "touch", touch)
+    with pytest.raises(OSError):
+        ledger.store(batch, "a.md", io.BytesIO(b"xxxx"), 4)
+    monkeypatch.setattr(Path, "touch", real)
+    assert _held(ws, batch) == []
+    ledger.store(batch, "full.md", io.BytesIO(b"x" * 8), 8)
+
+
+def test_a_failing_free_gives_the_quota_back(tmp_path, monkeypatch):
+    ws, batch, ledger = _ledger_batch(tmp_path, monkeypatch)
+    real = intake._free
+    monkeypatch.setattr(intake, "_free", lambda path: (_ for _ in ()).throw(OSError("disk trouble")))
+    with pytest.raises(OSError):
+        ledger.store(batch, "a.md", io.BytesIO(b"xxxx"), 4)
+    monkeypatch.setattr(intake, "_free", real)
+    ledger.store(batch, "full.md", io.BytesIO(b"x" * 8), 8)
+
+
+def test_a_containment_failure_gives_the_quota_back_and_removes_the_claimed_file(tmp_path, monkeypatch):
+    ws, batch, ledger = _ledger_batch(tmp_path, monkeypatch)
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    try:
+        (ws / "2-my-docs" / batch / "link").symlink_to(outside, target_is_directory=True)
+    except OSError:
+        pytest.skip("this account may not create symlinks (Windows without developer mode)")
+    with pytest.raises(intake.PathError):
+        ledger.store(batch, "link/a.md", io.BytesIO(b"xxxx"), 4)
+    assert list(outside.iterdir()) == []  # the file claimed through the link is gone
+    ledger.store(batch, "full.md", io.BytesIO(b"x" * 8), 8)
+
+
 # ── The comparison of a pile ────────────────────────────────────────────────────
 
 def _pile(tmp_path, files: dict[str, str]):

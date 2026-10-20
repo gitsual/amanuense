@@ -26,7 +26,7 @@ def _python(code: str) -> subprocess.CompletedProcess:
 
 def test_pyproject_declares_the_fastapi_extra_and_keeps_the_core_dependency_free():
     meta = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
-    assert meta["project"]["version"] == "0.2.0"
+    assert meta["project"]["version"] == "0.4.1"
     assert meta["project"]["dependencies"] == []
     extras = meta["project"]["optional-dependencies"]
     assert extras["fastapi"] == ["fastapi>=0.115"]
@@ -58,7 +58,13 @@ def test_the_router_has_no_way_to_stop_the_server_or_open_a_browser():
     pytest.importorskip("fastapi")
     from amanuense import api
     paths = {route.path for route in api.router.routes}
-    assert paths == {f"{BASE}/state", f"{BASE}/page", f"{BASE}/job", f"{BASE}/task", f"{BASE}/preview"}
+    assert paths == {f"{BASE}/state", f"{BASE}/page", f"{BASE}/job", f"{BASE}/task", f"{BASE}/preview",
+                     f"{BASE}/session", f"{BASE}/settings", f"{BASE}/settings/test", f"{BASE}/settings/forget",
+                     f"{BASE}/intake/plan", f"{BASE}/intake/start", f"{BASE}/intake/file", f"{BASE}/intake/cancel",
+                     f"{BASE}/intake/promote", f"{BASE}/job", f"{BASE}/save", f"{BASE}/resolve",
+                     f"{BASE}/approve", f"{BASE}/reopen", f"{BASE}/discard", f"{BASE}/promote",
+                     f"{BASE}/preflight", f"{BASE}/publish", f"{BASE}/undo", f"{BASE}/mark-published",
+                     f"{BASE}/vault", f"{BASE}/artifact/{{what}}"}
     source = (SRC / "amanuense" / "api.py").read_text(encoding="utf-8")
     assert "webbrowser" not in source and "shutdown" not in source and "/open" not in source
 
@@ -107,7 +113,7 @@ def blocking(monkeypatch):
 def test_install_exposes_the_workshop_and_the_api_version(host):
     from amanuense import api, service
     app, folder, _client = host
-    assert api.API_VERSION == 1
+    assert api.API_VERSION == 3
     assert isinstance(app.state.amanuense, service.Workshop) and app.state.amanuense.root == folder.resolve()
 
 

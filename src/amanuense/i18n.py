@@ -14,6 +14,8 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
+from . import settings
+
 LANGS = ("en", "es")
 DEFAULT = "en"
 _current = DEFAULT
@@ -275,6 +277,8 @@ la IA dice qué página tocar, qué cambiar y por qué, y prepara su tarea.
     "intake_file_too_big": {"en": "«{path}» is bigger than {mb} MB.", "es": "«{path}» supera los {mb} MB."},
     "intake_batch_too_big": {"en": "The upload would go over {mb} MB: send it in parts.",
                              "es": "La carga superaría los {mb} MB: envíala por partes."},
+    "intake_body_longer": {"en": "The file is longer than its declared size: try again.",
+                           "es": "El archivo es más largo que su tamaño declarado: inténtalo otra vez."},
     "intake_incomplete": {"en": "«{path}» arrived incomplete: try again.", "es": "«{path}» ha llegado incompleto: inténtalo otra vez."},
     "intake_hash_mismatch": {"en": "«{path}» arrived damaged (its fingerprint does not match): try again.",
                              "es": "«{path}» ha llegado dañado (su huella no coincide): inténtalo otra vez."},
@@ -426,6 +430,7 @@ la IA dice qué página tocar, qué cambiar y por qué, y prepara su tarea.
     "ui_missing": {"en": 'Missing: {fields}', "es": 'Falta: {fields}'},
     "ui_mind_not_configured": {"en": 'Confluence is not configured: open Settings and add its address, space and token.', "es": 'MIND no está configurado: abre Ajustes y añade la dirección, el espacio y el token.'},
     "ui_ai_not_configured": {"en": 'No AI is configured: choose one in Settings.', "es": 'No hay ninguna IA configurada: elige una en Ajustes.'},
+    "ui_bad_url": {"en": 'The address must be a web link starting with http:// or https://.', "es": 'La dirección debe ser un enlace web que empiece por http:// o https://.'},
     "ui_nothing_to_open": {"en": 'There is nothing to open yet.', "es": 'Todavía no hay nada que abrir.'},
     "ui_too_big": {"en": 'The text is too big to send.', "es": 'El texto es demasiado grande para enviarlo.'},
     "ui_busy": {"en": 'Wait until the current task finishes.', "es": 'Espera a que termine la tarea en curso.'},
@@ -754,6 +759,10 @@ la IA dice qué página tocar, qué cambiar y por qué, y prepara su tarea.
     "vault_no_export": {"en": "no .docx export in {folder}", "es": "no hay ningún export .docx en {folder}"},
     "vault_exists": {"en": "{folders} already exist in the vault; use --force to rebuild them",
                      "es": "{folders} ya existen en el vault; usa --force para regenerarlos"},
+    "vault_overlap": {"en": "the vault ({vault}) cannot be the workshop ({workshop}), contain it or sit inside "
+                            "one of its folders; a folder of its own inside the workshop, such as vault, is fine",
+                      "es": "el vault ({vault}) no puede ser el taller ({workshop}), contenerlo ni estar dentro "
+                            "de una de sus carpetas; una carpeta propia dentro del taller, como vault, sirve"},
     # ── command line ──
     "cli_description": {"en": "amanuense — workshop to rewrite and update Confluence pages. Non-destructive.",
                         "es": "amanuense — taller para reescribir y actualizar páginas de Confluence. No destructivo."},
@@ -834,5 +843,7 @@ def detect(root: Path | None) -> str | None:
 
 
 def choose(root: Path | None = None, lang: str | None = None, env=os.environ) -> str:
-    """Pick and switch to the language: the workshop's own, then `lang`, then AMANUENSE_LANG, then English."""
-    return use(detect(root) or lang or env.get("AMANUENSE_LANG") or DEFAULT)
+    """Pick and switch to the language: the workshop's own, then `lang`, then AMANUENSE_LANG, then
+    settings.json, then English."""
+    saved = settings.value("lang", env)
+    return use(detect(root) or lang or (saved if saved in LANGS else DEFAULT))

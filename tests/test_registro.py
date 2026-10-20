@@ -356,3 +356,57 @@ def test_triage_always_sees_every_commit_subject(tmp_path):
     log.triage_code_task(tmp_path, "Componentes", lambda p: seen.append(p) or "{}")
     assert "refactor: single package" in seen[0] and len(seen[0]) < 2 * log.MAX_TRIAGE_CHARS
     assert "aaaaaaaaaa · Ana: feat: tooling" in seen[0]
+
+
+# ── secrets never reach the stored errors or the log ──────────────────────────
+
+import pytest  # noqa: E402
+
+
+@pytest.mark.parametrize("raw, clean", [
+    ("https://u:p@ss@h/x", "https://h/x"),
+    ("https://u:p/ss@h/x", "https://h/x"),
+    ("https://u:pw@h/x", "https://h/x"),
+    ("https://h/x?private_token=abc&a=1", "https://h/x?private_token=***&a=1"),
+    ("https://h/x?Access_Token=abc", "https://h/x?Access_Token=***"),
+    ("https://h/x?a=1&PASSWORD=p%40ss&key=k#frag", "https://h/x?a=1&PASSWORD=***&key=***#frag"),
+    ("https://h/x#access_token=abc&state=1", "https://h/x#access_token=***&state=1"),
+    ("git@host:group/repo.git", "git@host:group/repo.git"),
+])
+def test_scrub_url_hides_userinfo_and_sensitive_params(raw, clean):
+    assert log.scrub_url(f"fail {raw} end") == f"fail {clean} end"
+
+
+def test_stored_errors_never_contain_a_secret_from_history(tmp_path):
+    root = tmp_path / "taller"
+    docs_kit.init_workspace(root)
+
+    class Boom:
+        def changes(self, title, since=None):
+            raise RuntimeError("401 for https://u:secret@h/r")
+
+    log.update_log(root, [], [log.Page("A", "# A\n\nuno\n")], {}, created="2026-10-01T10:00:00Z")
+    result = log.update_log(root, [], [log.Page("A", "# A\n\ndos\n")], {}, history=Boom(), created="2026-10-02T10:00:00Z")
+    assert result["errors"] and not any("secret" in e for e in result["errors"])
+
+
+def test_stored_errors_never_contain_a_secret_from_a_request(tmp_path):
+    root = tmp_path / "taller"
+    docs_kit.init_workspace(root)
+    (root / log.REQUESTS_FILE).write_text("- Ana: algo\n", encoding="utf-8")
+
+    def boom(prompt):
+        raise RuntimeError("down: https://u:secret@h/r")
+
+    result = log.update_log(root, [], [log.Page("A", "# A\n\nuno\n")], {}, router=boom, created="2026-10-01T10:00:00Z")
+    assert result["errors"] and not any("secret" in e for e in result["errors"])
+
+
+def test_stored_errors_never_contain_a_secret_from_a_solve(tmp_path):
+    root = _code_workspace(tmp_path, request=True)
+
+    def boom(prompt):
+        raise RuntimeError("down: https://u:secret@h/r")
+
+    result = docs_kit.run_workspace(root, ai=boom, router=lambda p: '{"pagina": "Tabla de tracks", "cambio": "c", "motivo": "m"}')
+    assert result["log_errors"] and not any("secret" in e for e in result["log_errors"])

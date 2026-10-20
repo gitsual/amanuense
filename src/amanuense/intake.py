@@ -306,18 +306,22 @@ class Ledger:
             raise IntakeError(i18n.t("intake_unsupported", path=rel))
         if length > MAX_FILE_BYTES:
             raise TooBig(i18n.t("intake_file_too_big", path=rel, mb=MAX_FILE_BYTES // (1024 * 1024)))
-        with self.lock:
-            if self._used(batch, folder) + length > MAX_BATCH_BYTES:
-                raise TooBig(i18n.t("intake_batch_too_big", mb=MAX_BATCH_BYTES // (1024 * 1024)))
-            self.used[batch] += length  # reserved now, so parallel uploads cannot overshoot
-            target = _free(folder / rel)
-            target.parent.mkdir(parents=True, exist_ok=True)
-            target.touch()  # claims the name for this upload
-        if not target.resolve().is_relative_to(folder.resolve()):
-            raise PathError(i18n.t("intake_bad_path", path=rel))
-        tmp = target.with_name(target.name + ".part")
-        h, left = hashlib.sha256(), length
+        reserved = created = False
+        tmp = None
         try:
+            with self.lock:
+                if self._used(batch, folder) + length > MAX_BATCH_BYTES:
+                    raise TooBig(i18n.t("intake_batch_too_big", mb=MAX_BATCH_BYTES // (1024 * 1024)))
+                self.used[batch] += length  # reserved now, so parallel uploads cannot overshoot
+                reserved = True
+                target = _free(folder / rel)
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.touch(exist_ok=False)  # claims the name for this upload (and only ours is removed)
+                created = True
+            if not target.resolve().is_relative_to(folder.resolve()):
+                raise PathError(i18n.t("intake_bad_path", path=rel))
+            tmp = target.with_name(target.name + ".part")
+            h, left = hashlib.sha256(), length
             with tmp.open("wb") as out:
                 while left > 0:
                     chunk = stream.read(min(left, 1 << 16))
@@ -330,10 +334,13 @@ class Ledger:
                 raise IntakeError(i18n.t("intake_hash_mismatch", path=rel))
             os.replace(tmp, target)
         except BaseException:
-            tmp.unlink(missing_ok=True)
-            target.unlink(missing_ok=True)
-            with self.lock:
-                self.used[batch] -= length
+            if tmp is not None:
+                tmp.unlink(missing_ok=True)
+            if created:
+                target.unlink(missing_ok=True)
+            if reserved:
+                with self.lock:
+                    self.used[batch] -= length
             raise
         return target.relative_to(self.root / i18n.name("local")).as_posix()
 

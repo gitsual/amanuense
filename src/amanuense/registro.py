@@ -34,7 +34,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Callable
 
-from . import i18n
+from . import i18n, settings
 from . import taller as kit
 from .confluence import Page, _slug, normalize_title
 
@@ -460,7 +460,7 @@ def _solve_side(out: Path, entries: list[dict], by_title: dict, ai: Ai, template
         try:
             write()
         except Exception as exc:  # one failing task must not stop the rest
-            errors.append(f"{rel}: {exc}")
+            errors.append(scrub_url(f"{rel}: {exc}"))
 
     proposals: dict[str, str] = {}
     for e in entries:
@@ -537,7 +537,19 @@ def _now() -> str:
 
 
 def _user() -> str:
-    return os.environ.get("AMANUENSE_USER") or os.environ.get("USERNAME") or os.environ.get("USER") or "?"
+    return settings.value("user")  # AMANUENSE_USER > settings.json > USERNAME/USER
+
+
+# Userinfo runs up to the LAST `@` of the authority, so a password holding `@` or `/` cannot leak.
+_USERINFO = re.compile(r"(?<=://)[^\s?#]*@")
+_SECRET_PARAM = re.compile(r"(?<=[?&#])((?:access_token|private_token|token|password|key|secret|auth)=)[^&#\s]*",
+                           re.IGNORECASE)
+
+
+def scrub_url(text: str) -> str:
+    """The text without `user:password@` / `user@` in its URLs and without the value of secret-looking
+    query/fragment parameters: the log is served without a token."""
+    return _SECRET_PARAM.sub(r"\1***", _USERINFO.sub("", str(text)))
 
 
 def update_log(root: Path, exports: list[Path], pages: list[Page], ready: dict[str, kit.Task],
@@ -575,7 +587,7 @@ def update_log(root: Path, exports: list[Path], pages: list[Page], ready: dict[s
                 try:
                     versions = history.changes(change.title, since=snap["created"])
                 except Exception as exc:  # no network or no permission: keep the "what"
-                    errors.append(f"Confluence ({change.title}): {exc}")
+                    errors.append(scrub_url(f"Confluence ({change.title}): {exc}"))
             authors = list(dict.fromkeys(v["by"] for v in versions))
             add({"id": _id("confluence", change.title, snap["created"], created), "kind": "confluence",
                  "when": versions[0]["when"] if versions else created, "page": change.title,
@@ -596,11 +608,11 @@ def update_log(root: Path, exports: list[Path], pages: list[Page], ready: dict[s
             if sync_repos:
                 sync_repo(spec, run)
         except Exception as exc:  # offline: keep reading what was fetched before
-            errors.append(i18n.t("err_sync", repo=spec.url, error=exc))
+            errors.append(scrub_url(i18n.t("err_sync", repo=spec.url, error=exc)))
         try:
             commits = git_commits(spec.path, since, spec.refs, run)
         except Exception as exc:
-            errors.append(f"git ({spec.path}): {exc}")
+            errors.append(scrub_url(f"git ({spec.path}): {exc}"))
             continue
         for c in commits:
             entry = {"id": _id("codigo", c["hash"]), "kind": "codigo", "when": c["when"], "by": c["by"],
@@ -621,7 +633,7 @@ def update_log(root: Path, exports: list[Path], pages: list[Page], ready: dict[s
         try:
             route = route_request(req, pages, router)
         except Exception as exc:
-            errors.append(i18n.t("err_request", by=req["by"], error=exc))
+            errors.append(scrub_url(i18n.t("err_request", by=req["by"], error=exc)))
             continue
         entry = {"id": req["id"], "kind": "peticion", "when": _now(), "by": req["by"], "request": req["text"],
                  "page": route["pagina"], "cambio": route["cambio"], "motivo": route["motivo"], "task": ""}
@@ -687,7 +699,7 @@ def render_log(entries: list[dict], errors: list[str] | None = None) -> str:
         rows.append(f"<tr><td>{html.escape(e['when'][:16].replace('T', ' '))}</td>"
                     f"<td>{_label('kind', e['kind'])}</td><td>{html.escape(e['by'])}</td>"
                     f"<td>{html.escape(e.get('page') or '')}</td><td>{_detail(e)}</td></tr>")
-    warn = (f"<p><b>{t('log_warnings')}</b></p><ul>" + "".join(f"<li>{html.escape(x)}</li>" for x in errors)
+    warn = (f"<p><b>{t('log_warnings')}</b></p><ul>" + "".join(f"<li>{html.escape(scrub_url(x))}</li>" for x in errors)
             + "</ul>" if errors else "")
     heads = "".join(f"<th>{t(k)}</th>" for k in ("col_date", "col_source", "col_who", "col_page", "col_what"))
     body = (f"<h1>{t('log_title')}</h1><p>{t('log_intro', requests=i18n.name('requests'))}</p>{warn}"

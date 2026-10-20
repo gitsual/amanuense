@@ -262,3 +262,22 @@ def test_the_service_does_not_pull_in_a_server():
     out = _python("import sys\nimport amanuense.service\n"
                   "print(sorted(m for m in ('http.server', 'fastapi', 'starlette') if m in sys.modules))")
     assert out == "[]"
+
+
+@pytest.mark.parametrize("action", ["save", "resolve", "approve", "reopen", "discard", "promote",
+                                    "mark-published", "publish", "undo", "preflight"])
+@pytest.mark.parametrize("rel", ["../x", "/abs/x", "a\\..\\x", "C:\\x", 5, "", None])
+def test_a_page_outside_the_workshop_is_refused_before_anything_is_written(workshop, tmp_path, action, rel):
+    """The choke point for the stdlib app too: a bad `rel` raises ValueError and touches no file."""
+    def snap():
+        return {str(f): f.read_bytes() for f in sorted(tmp_path.rglob("*")) if f.is_file()}
+    before = snap()
+    body = {"rel": rel, "markdown": "PWNED", "notice": "n", "decision": "d", "reason": "r", "url": "u"}
+    with pytest.raises(ValueError):
+        workshop.act(action, body)
+    assert snap() == before
+
+
+def test_a_rework_job_refuses_a_page_outside_the_workshop(workshop):
+    with pytest.raises(ValueError):
+        workshop.start_job("rework", {"rel": "../x", "instruction": "i"})
