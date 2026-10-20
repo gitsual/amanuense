@@ -37,7 +37,7 @@ def world(tmp_path: Path) -> dict:
     """A code repo to follow and a team repo holding the workshop, wired with a file:// URL."""
     env = {k: v for k, v in os.environ.items() if not k.startswith(("AMANUENSE_", "GIT_"))}
     env.update(HOME=str(tmp_path / "home"), PATH=os.path.dirname(sys.executable) + os.pathsep + env["PATH"],
-               GIT_CONFIG_NOSYSTEM="1")
+               GIT_CONFIG_NOSYSTEM="1", AMANUENSE_CONFIG_DIR=str(tmp_path / "config"))
     (tmp_path / "home").mkdir()
     source = tmp_path / "source"
     source.mkdir()
