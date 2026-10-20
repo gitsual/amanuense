@@ -14,6 +14,8 @@ sys.path.insert(0, str(ROOT / "tests"))
 from amanuense import taller as docs_kit  # noqa: E402
 from test_revision import _ready  # noqa: E402
 
+MISSING = str(Path(Path.cwd().anchor) / "no" / "such" / "folder")  # absolute on POSIX and Windows
+
 BASE = "/api/amanuense"
 HEADER = "X-Amanuense-Token"
 LOCAL = "http://127.0.0.1:8000"
@@ -93,7 +95,7 @@ def test_post_without_a_token_is_refused_and_writes_nothing(full, isolated):
 
 def test_post_with_a_token_saves_and_answers_the_listing_with_warnings(full, isolated):
     client = full[1]
-    got = _post(client, "/settings", {"values": {"ai_model": "llama", "workspace": "/no/such/folder"}}, _token(client))
+    got = _post(client, "/settings", {"values": {"ai_model": "llama", "workspace": MISSING}}, _token(client))
     body = got.json()
     assert got.status_code == 200
     assert json.loads(_file(isolated).read_text(encoding="utf-8"))["ai_model"] == "llama"
@@ -256,9 +258,11 @@ def test_the_settings_posts_are_in_the_mutating_registry_with_their_gates():
 
 def test_reduced_install_registers_only_session_and_the_settings_routes(reduced):
     app, client = reduced
-    paths = {(r.path, tuple(sorted(r.methods))) for r in app.routes if r.path.startswith(BASE)}
-    assert paths == {(f"{BASE}/session", ("GET",)), (f"{BASE}/settings", ("GET",)), (f"{BASE}/settings", ("POST",)),
-                     (f"{BASE}/settings/test", ("POST",)), (f"{BASE}/settings/forget", ("POST",))}
+    # The OpenAPI schema, not app.routes: FastAPI 0.150 nests included routers in app.routes.
+    paths = {(path, method.upper()) for path, ops in app.openapi()["paths"].items() if path.startswith(BASE)
+             for method in ops}
+    assert paths == {(f"{BASE}/session", "GET"), (f"{BASE}/settings", "GET"), (f"{BASE}/settings", "POST"),
+                     (f"{BASE}/settings/test", "POST"), (f"{BASE}/settings/forget", "POST")}
     assert getattr(app.state, "amanuense", None) is None
     for path in ("/state", "/page", "/job"):
         assert client.get(f"{BASE}{path}").status_code == 404
