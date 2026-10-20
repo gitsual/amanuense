@@ -87,7 +87,7 @@ def test_precedence_env_then_file_then_default(home, monkeypatch):
 
 
 def test_defaults_for_workspace_and_vault(home, tmp_path):
-    base = tmp_path / "home"
+    base = tmp_path / "home" / "Documents" if settings._windows() else tmp_path / "home"  # where Windows users keep files
     assert settings.value("workspace") == str(base / "docs-workshop")
     (base / "taller-docs").mkdir(parents=True)
     assert settings.value("workspace") == str(base / "taller-docs")
