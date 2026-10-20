@@ -355,6 +355,8 @@ def test_no_vault_configured_is_a_400(host):
 
 @pytest.mark.parametrize("where", ["equal", "inside", "contains"])
 def test_a_vault_overlapping_the_workshop_is_a_400_before_any_job_and_deletes_nothing(tmp_path, monkeypatch, where):
+    pytest.importorskip("fastapi")
+    pytest.importorskip("httpx")
     from amanuense import obsidian
     ran = []
     monkeypatch.setattr(obsidian, "workshop_to_vault", lambda *a, **k: ran.append(a))
