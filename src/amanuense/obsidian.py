@@ -183,11 +183,19 @@ MIND_DIR = "MIND"
 
 
 def check_vault(workshop: Path, vault: Path) -> None:
-    """A vault that is the workshop, lies inside it or contains it would have its own sources
-    deleted by a rebuild: refuse it (real paths, so links and `..` do not hide the overlap)."""
+    """A vault that is the workshop, contains it or lies inside one of its folders could have the
+    workshop's own files deleted by a rebuild: refuse it (real paths, so links and `..` do not hide
+    the overlap). A folder of its own inside the workshop, like the default <workshop>/vault, is safe:
+    the rebuild only replaces subtrees of the vault, and the workshop never reads it as a source."""
     w, v = Path(workshop).resolve(), Path(vault).resolve()
-    if w == v or w in v.parents or v in w.parents:
+    in_workshop_folder = w in v.parents and v.relative_to(w).parts[0].casefold() in _workshop_names()
+    if w == v or v in w.parents or in_workshop_folder:
         raise ValueError(i18n.t("vault_overlap", vault=v, workshop=w))
+
+
+def _workshop_names() -> set[str]:
+    """Every name the workshop uses, in every language, so a vault never lands in one of its folders."""
+    return {n.casefold() for names in i18n.NAMES.values() for n in names.values()}
 
 
 class RollbackError(OSError):

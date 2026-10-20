@@ -876,7 +876,7 @@ def main(argv: list[str] | None = None) -> None:
             else:
                 done = export_to_vault(a.export, a.dest, a.force)
                 print(t("cli_vault_done", notes=done["notes"], media=done["media"], vault=done["vault"]))
-        except (FileExistsError, FileNotFoundError) as e:
+        except (FileExistsError, FileNotFoundError, ValueError) as e:
             raise SystemExit(f"✗ {e}") from None
         return
     if a.cmd == "radiator":

@@ -7,7 +7,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from amanuense import obsidian  # noqa: E402
+from amanuense import obsidian, taller  # noqa: E402
 
 W = 'xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"'
 R = 'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"'
@@ -168,18 +168,39 @@ def _snapshot(folder):
 
 
 def _overlaps(tmp_path):
+    from amanuense import i18n
     ws = _workshop(tmp_path)
-    (ws / "inside").mkdir()
-    return ws, {"equal": ws, "inside": ws / "inside" / "vault", "contains": tmp_path}
+    (ws / i18n.name("out")).mkdir()
+    return ws, {"equal": ws, "contains": tmp_path, "in_local": ws / i18n.name("local") / "vault",
+                "in_export": ws / i18n.name("export") / "vault", "in_out": ws / i18n.name("out") / "vault"}
 
 
-@pytest.mark.parametrize("where", ["equal", "inside", "contains"])
+@pytest.mark.parametrize("where", ["equal", "contains", "in_local", "in_export", "in_out"])
 def test_a_vault_that_overlaps_the_workshop_is_refused_and_nothing_is_deleted(tmp_path, where):
     ws, vaults = _overlaps(tmp_path)
     before = _snapshot(tmp_path)
     with pytest.raises(ValueError):
         obsidian.workshop_to_vault(ws, vaults[where], force=True)
     assert _snapshot(tmp_path) == before
+
+
+def test_the_workshop_vault_folder_is_a_valid_vault_and_leaves_the_sources_alone(tmp_path):
+    """<workshop>/vault is the documented layout (amanuense.sh vault, settings default)."""
+    from amanuense import i18n
+    ws = _workshop(tmp_path)
+    sources = {k: _snapshot(ws / i18n.name(k)) for k in ("export", "local", "bible")}
+    for _ in range(2):  # a rebuild over the previous vault, as the vault job does
+        done = obsidian.workshop_to_vault(ws, ws / "vault", force=True)
+    assert done["vault"] == ws / "vault"
+    assert (ws / "vault" / i18n.name("local") / "Contrato.md").is_file()
+    assert {k: _snapshot(ws / i18n.name(k)) for k in sources} == sources
+
+
+def test_the_cli_reports_an_overlapping_vault_without_a_traceback(tmp_path, capsys):
+    ws = _workshop(tmp_path)
+    with pytest.raises(SystemExit) as e:
+        taller.main(["obsidian", str(ws), str(ws), "--force"])
+    assert str(e.value).startswith("✗ ")
 
 
 def test_a_vault_reached_through_a_symlink_to_the_workshop_is_refused(tmp_path):

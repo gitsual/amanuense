@@ -306,6 +306,15 @@ def test_a_missing_vault_folder_is_created_and_the_callback_runs_once(vaulted):
     assert "reindex_error" not in done["result"] and spy.calls == [1]
 
 
+def test_the_default_vault_inside_the_workshop_is_generated(vaulted):
+    """<workshop>/vault, the settings default and the brick layout, must not be refused as an overlap."""
+    app, folder, client, h, _vault, spy, made = vaulted
+    app.state.amanuense.vault = folder / "vault"
+    assert client.post(f"{BASE}/vault", json={"confirm": True}, headers=h).status_code == 200
+    done = _finished(client)
+    assert done["error"] == "" and made[0]["vault"] == folder / "vault" and spy.calls == [1]
+
+
 def test_a_failed_generation_does_not_call_the_callback(vaulted, monkeypatch):
     _a, _f, client, h, vault, spy, _made = vaulted
     from amanuense import obsidian
@@ -350,7 +359,8 @@ def test_a_vault_overlapping_the_workshop_is_a_400_before_any_job_and_deletes_no
     ran = []
     monkeypatch.setattr(obsidian, "workshop_to_vault", lambda *a, **k: ran.append(a))
     folder = _ready(tmp_path, "# Convenciones\n\nTexto.\n")
-    vault = {"equal": folder, "inside": folder / "notes" / "vault", "contains": tmp_path}[where]
+    from amanuense import i18n
+    vault = {"equal": folder, "inside": folder / i18n.name("local") / "vault", "contains": tmp_path}[where]
     spy = Spy()
     from fastapi import FastAPI
     from fastapi.testclient import TestClient
@@ -364,7 +374,7 @@ def test_a_vault_overlapping_the_workshop_is_a_400_before_any_job_and_deletes_no
     assert client.post(f"{BASE}/vault", json={"confirm": True}, headers=h).status_code == 400
     assert client.get(f"{BASE}/job").json()["name"] == ""
     assert not ran and not spy.calls and sorted(p for p in tmp_path.rglob("*") if p.is_file()) == before
-    assert not (folder / "notes").exists()
+    assert not (folder / i18n.name("local") / "vault").exists()
 
 
 def test_the_real_generator_failing_keeps_the_vault_and_reports_the_error(tmp_path, monkeypatch):
